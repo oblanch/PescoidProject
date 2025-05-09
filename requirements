@@ -3,3 +3,5 @@ numpy == 1.20.0
 matplotlib == 3.10.1
 python == 3.11.12
 tqdm == v4.67.1
+pandas
+itertools
