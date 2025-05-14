@@ -8,6 +8,7 @@ from dolfin import conditional  # type: ignore
 from dolfin import Constant  # type: ignore
 from dolfin import dx  # type: ignore
 from dolfin import Expression  # type: ignore
+from dolfin import FiniteElement  # type: ignore
 from dolfin import Form  # type: ignore
 from dolfin import Function  # type: ignore
 from dolfin import FunctionSpace  # type: ignore
@@ -15,16 +16,17 @@ from dolfin import IntervalMesh  # type: ignore
 from dolfin import lhs  # type: ignore
 from dolfin import LogLevel  # type: ignore
 from dolfin import lt  # type: ignore
-from dolfin import MixedFunctionSpace  # type: ignore
+from dolfin import MixedElement  # type: ignore
 from dolfin import project  # type: ignore
 from dolfin import rhs  # type: ignore
 from dolfin import set_log_level  # type: ignore
 from dolfin import solve  # type: ignore
 from dolfin import split  # type: ignore
-from dolfin import tanh  # type: ignore
 from dolfin import TestFunctions  # type: ignore
+from dolfin import TrialFunctions  # type: ignore
 import numpy as np
 from tqdm import tqdm  # type: ignore
+from ufl import tanh  # type: ignore
 
 from pescoid_modelling.config import SimulationParams
 from pescoid_modelling.constants import LEADING_EDGE_THRESHOLD
@@ -77,6 +79,7 @@ class PescoidSimulator:
 
         set_log_level(LogLevel.ERROR)
         self._set_simulation_time()
+        self._initialize_constants()
 
     def _set_simulation_time(
         self, total_hours: float = 12.0, minutes_per_generation: float = 30.0
@@ -85,6 +88,29 @@ class PescoidSimulator:
         self.final_time = (total_hours * 60.0) / minutes_per_generation
         self.time_step = self.params.delta_t
         self.num_steps = int(round(self.final_time / self.time_step))
+
+    def _initialize_constants(self) -> None:
+        """Initialize FEniCS Constant objects for all scalar parameters."""
+        # Simulation parameters
+        self._dt_const = Constant(self.time_step)
+        self._diffusivity_const = Constant(self.params.diffusivity)
+        self._flow_const = Constant(self.params.flow)
+        self._tau_m_const = Constant(self.params.tau_m)
+        self._activity_const = Constant(self.params.activity)
+        self._beta_const = Constant(self.params.beta)
+        self._r_const = Constant(self.params.r)
+        self._sigma_c_const = Constant(self.params.sigma_c)
+        self._gamma_const = Constant(self.params.gamma)
+
+        # Imported constants
+        self._rho_sensitivity_const = Constant(RHO_SENSITIVITY)
+        self._m_sensitivity_const = Constant(M_SENSITIVITY)
+        self._rho_gate_center_const = Constant(RHO_GATE_CENTER)
+        self._rho_gate_width_const = Constant(RHO_GATE_WIDTH)
+
+        # Utility constants
+        self._one_const = Constant(1.0)
+        self._half_const = Constant(0.5)
 
     def run(self) -> "PescoidSimulator":
         """Run the simulation."""
@@ -134,9 +160,12 @@ class PescoidSimulator:
         if self._mesh is None:
             raise RuntimeError("Mesh must be set up before creating function spaces.")
 
-        self._mixed_function_space = MixedFunctionSpace(
-            [FunctionSpace(self._mesh, "CG", 1) for _ in range(3)]
-        )
+        element1 = FiniteElement("CG", self._mesh.ufl_cell(), 1)
+        element2 = FiniteElement("CG", self._mesh.ufl_cell(), 1)
+        element3 = FiniteElement("CG", self._mesh.ufl_cell(), 1)
+        mixed_element = MixedElement([element1, element2, element3])
+
+        self._mixed_function_space = FunctionSpace(self._mesh, mixed_element)
         self._previous_state = Function(self._mixed_function_space)
         self._current_state = Function(self._mixed_function_space)
 
@@ -160,10 +189,18 @@ class PescoidSimulator:
         mesoderm_initial_condition = Expression("-1.0", degree=1)
         velocity_initial_condition = Expression("0.0", degree=1)
 
-        # Assign initial conditions to function
-        assign(self._previous_state.sub(0), density_initial_condition)
-        assign(self._previous_state.sub(1), mesoderm_initial_condition)
-        assign(self._previous_state.sub(2), velocity_initial_condition)
+        # Create individual function spaces
+        scalar_space = FunctionSpace(self._mesh, "CG", 1)
+
+        # Project expressions onto individual spaces
+        density_func = project(density_initial_condition, scalar_space)
+        mesoderm_func = project(mesoderm_initial_condition, scalar_space)
+        velocity_func = project(velocity_initial_condition, scalar_space)
+
+        # Assign to mixed space
+        assign(self._previous_state.sub(0), density_func)
+        assign(self._previous_state.sub(1), mesoderm_func)
+        assign(self._previous_state.sub(2), velocity_func)
 
     def _build_variational_forms(self) -> None:
         """Build the variational forms for the PDEs."""
@@ -176,33 +213,32 @@ class PescoidSimulator:
         """Build the variational forms for the PDEs."""
         # split unknowns / tests
         rho_prev, m_prev, u_prev = split(self._previous_state)  # type: ignore
-        rho, m, u = split(self._current_state)  # type: ignore
+        rho, m, u = TrialFunctions(self._mixed_function_space)  # type: ignore
         t_rho, t_m, t_u = TestFunctions(self._mixed_function_space)  # type: ignore
 
         # Formulate residuals
-        res_rho = self._formulate_density_equation(
+        F_rho = self._formulate_density_equation(
             rho=rho,  # type: ignore
             rho_prev=rho_prev,  # type: ignore
             u_prev=u_prev,
             t_rho=t_rho,  # type: ignore
         )
-        res_m = self._formulate_mesoderm_equation(
+        F_m = self._formulate_mesoderm_equation(
             m=m,
             m_prev=m_prev,
             rho_prev=rho_prev,  # type: ignore
             u_prev=u_prev,
             t_m=t_m,
         )
-        res_u = self._formulate_velocity_equation(
+        F_u = self._formulate_velocity_equation(
             u=u,
             rho_prev=rho_prev,  # type: ignore
             m_prev=m_prev,
             t_u=t_u,
         )
 
-        # Combine residuals
-        total_residual = res_rho + res_m + res_u
-        return lhs(total_residual), rhs(total_residual)  # type: ignore
+        total_form = F_rho + F_m + F_u
+        return lhs(total_form), rhs(total_form)  # type: ignore
 
     def _formulate_density_equation(
         self,
@@ -217,15 +253,19 @@ class PescoidSimulator:
             d rho / dt = Delta * d^2 rho / dx^2 - Flow * u_prev * d rho_prev /
             dx + rho_prev * (1 - rho_prev)
         """
-        dt = self.time_step
-
-        # Logistic growth + diffusion + advection
-        return (
-            (rho - rho_prev) * t_rho * dx  # type: ignore
-            + dt * self.params.diffusivity * rho.dx(0) * t_rho.dx(0) * dx  # type: ignore
-            - dt * self.params.flow * u_prev * rho_prev * t_rho.dx(0) * dx  # type: ignore
-            - dt * rho_prev * (1 - rho_prev) * t_rho * dx  # type: ignore
+        temporal = (rho - rho_prev) * t_rho * dx  # type: ignore
+        diffusion = (
+            self._dt_const * self._diffusivity_const * rho.dx(0) * t_rho.dx(0) * dx  # type: ignore
         )
+        advection = (
+            -self._dt_const * self._flow_const * u_prev * rho_prev.dx(0) * t_rho * dx  # type: ignore
+        )
+        reaction = (
+            -self._dt_const * rho_prev * (self._one_const - rho_prev) * t_rho * dx  # type: ignore
+        )
+
+        # Complete form
+        return temporal + diffusion + advection + reaction
 
     def _formulate_mesoderm_equation(
         self,
@@ -243,16 +283,16 @@ class PescoidSimulator:
         + Delta * d^2 m / dx^2
         - Flow * u_prev * d m_prev / dx
         """
-        dt = self.time_step
         feedback_mode = getattr(self.params, "feedback_mode", "strain_rate")
 
-        # Common decay term
+        # Build term by term
+        temporal = (m - m_prev) * t_m * dx  # type: ignore
         common_decay = (
-            dt  # type: ignore
-            * (1 / self.params.tau_m)  # type: ignore
+            self._dt_const
+            * (self._one_const / self._tau_m_const)  # type: ignore
             * m_prev
-            * (m_prev + 1)  # type: ignore
-            * (1 - m_prev)  # type: ignore
+            * (m_prev + self._one_const)  # type: ignore
+            * (self._one_const - m_prev)  # type: ignore
             * t_m
             * dx
         )
@@ -262,14 +302,10 @@ class PescoidSimulator:
         else:  # active_stress
             feedback = self._formulate_active_stress_feedback(u_prev, t_m)
 
+        diffusion = self._dt_const * self._diffusivity_const * m.dx(0) * t_m.dx(0) * dx  # type: ignore
+        advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * t_m * dx  # type: ignore
         # Complete residual
-        return (
-            (m - m_prev) * t_m * dx  # type: ignore
-            - common_decay
-            - feedback
-            + dt * self.params.diffusivity * m.dx(0) * t_m.dx(0) * dx  # type: ignore
-            + dt * self.params.flow * u_prev * m_prev.dx(0) * t_m * dx  # type: ignore
-        )
+        return temporal - common_decay - feedback + diffusion + advection
 
     def _formulate_strain_rate_feedback(
         self,
@@ -289,23 +325,35 @@ class PescoidSimulator:
             (tanh((mesoderm_prev - M_SENSITIVITY)/M_SENSITIVITY) + 1)/2)
         )
         """
-        dt = self.time_step
-
         stress_term = (
-            rho_prev
-            * self.params.activity  # type: ignore
-            * (rho_prev / (1 + RHO_SENSITIVITY * rho_prev * rho_prev))  # type: ignore
+            rho_prev  # type: ignore
+            * self._activity_const
             * (
-                1
-                + self.params.beta
-                * ((tanh((m_prev - M_SENSITIVITY) / M_SENSITIVITY) + 1) / 2)  # type: ignore
+                rho_prev
+                / (self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev)  # type: ignore
+            )
+            * (
+                self._one_const
+                + self._beta_const
+                * (
+                    (
+                        tanh(
+                            (m_prev - self._m_sensitivity_const)  # type: ignore
+                            / self._m_sensitivity_const
+                        )
+                        + self._one_const
+                    )
+                    / Constant(2.0)
+                )
             )
         )
+
+        # Return feedback term
         return (
-            dt
-            * (1 / self.params.tau_m)
-            * self.params.r
-            * (stress_term - self.params.sigma_c)
+            self._dt_const
+            * (self._one_const / self._tau_m_const)  # type: ignore
+            * self._r_const
+            * (stress_term - self._sigma_c_const)
             * t_m
             * dx
         )
@@ -320,13 +368,11 @@ class PescoidSimulator:
 
         (1/tau_m) * R * (Sigma_c - velocity_prev.dx(0))
         """
-        dt = self.time_step
-
         return (
-            dt
-            * (1 / self.params.tau_m)
-            * self.params.r
-            * (self.params.sigma_c - u_prev.dx(0))  # type: ignore
+            self._dt_const
+            * (self._one_const / self._tau_m_const)  # type: ignore
+            * self._r_const
+            * (self._sigma_c_const - u_prev.dx(0))  # type: ignore
             * t_m
             * dx
         )
@@ -343,17 +389,21 @@ class PescoidSimulator:
 
         rho_gate * Gamma * u + rho_gate * d u / dx = div(stress)
         """
-        # Density gating function
-        rho_gate = 0.5 * (tanh((rho_prev - RHO_GATE_CENTER) / RHO_GATE_WIDTH) + 1)  # type: ignore
+        rho_gate = self._half_const * (
+            tanh((rho_prev - self._rho_gate_center_const) / self._rho_gate_width_const)  # type: ignore
+            + self._one_const
+        )
 
         # Stress divergence term
         stress_div = self._calculate_stress_divergence(rho_prev, m_prev)
 
-        return (
-            rho_gate * self.params.gamma * u * t_u * dx
-            + rho_gate * u.dx(0) * t_u.dx(0) * dx  # type: ignore
-            - stress_div * t_u * dx  # type: ignore
-        )
+        # Build equation terms
+        momentum = rho_gate * self._gamma_const * u * t_u * dx
+        viscosity = rho_gate * u.dx(0) * t_u.dx(0) * dx  # type: ignore
+        force = stress_div * t_u * dx  # type: ignore
+
+        # Return complete form
+        return momentum + viscosity - force
 
     def _calculate_stress_divergence(
         self, rho_prev: Function, m_prev: Function
@@ -369,17 +419,32 @@ class PescoidSimulator:
                 * ((tanh((mesoderm_prev - M_SENSITIVITY)/M_SENSITIVITY) + 1)/2)
             ) - 1]
         """
-        return (
+        stress = (
             rho_prev
-            * self.params.activity  # type: ignore
-            * (rho_prev / (1 + RHO_SENSITIVITY * rho_prev * rho_prev))  # type: ignore
+            * self._activity_const  # type: ignore
             * (
-                1
-                + self.params.beta
-                * ((tanh((m_prev - M_SENSITIVITY) / M_SENSITIVITY) + 1) / 2)  # type: ignore
+                rho_prev
+                / (self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev)  # type: ignore
             )
-            - 1
-        ).dx(0)
+            * (
+                self._one_const
+                + self._beta_const
+                * (
+                    (
+                        tanh(
+                            (m_prev - self._m_sensitivity_const)  # type: ignore
+                            / self._m_sensitivity_const
+                        )
+                        + self._one_const
+                    )
+                    / Constant(2.0)
+                )
+            )
+            - self._one_const
+        )
+
+        # Return divergence
+        return stress.dx(0)
 
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""
@@ -387,12 +452,19 @@ class PescoidSimulator:
         solve(lhs_form == rhs_form, self._current_state)
         self._previous_state.assign(self._current_state)
 
+        # Extract components
         rho_fn, m_fn, u_fn = self._current_state.split(deepcopy=True)
+
         if self._check_for_errant_values(rho_fn) or self._check_for_errant_values(m_fn):
             return False
 
-        rho_fn.assign(self._ensure_non_negative(rho_fn))
-        assign(self._current_state.sub(0), rho_fn)
+        # Create separate scalar space for non-negative projection
+        scalar_space = FunctionSpace(self._mesh, "CG", 1)
+        corrected_expr = conditional(lt(rho_fn, 0), Constant(0.0), rho_fn)
+        corrected_rho = project(corrected_expr, scalar_space)
+
+        # Assign back to the component
+        assign(self._current_state.sub(0), corrected_rho)
 
         self._log_simulation_state(step_idx)
         return True
