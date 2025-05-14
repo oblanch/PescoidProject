@@ -19,7 +19,7 @@ conda activate pescoid
 pip install -r requirements.txt
 ```
 
-This package is currently in active developlment. If you'd like to use it to test/run simulations, install via:
+This package is currently in active developlment. If you'd like to use it to test/run simulations, install it in editable mode via:
 ```sh
 git clone https://github.com/oblanch/PescoidProject.git
 cd pescoid-modelling
