@@ -8,7 +8,7 @@ A computational model simulating tissue morphogenesis as an active fluid system 
 The simulation is implemented using FEniCS for robust finite element PDE solving and CMA-ES for parameter optimization to fit the model to experimental data.
 
 ## Installation
-This package utilizes legacy FENICS. To install:
+This package utilizes legacy FENICS. To install an appropriate environment:
 ```sh
 # Create environment with legacy FEniCS
 conda create -n pescoid python=3.11 -y
@@ -19,24 +19,31 @@ conda activate pescoid
 pip install -r requirements.txt
 ```
 
+This package is currently in active developlment. If you'd like to use it to test/run simulations, install via:
+```sh
+git clone https://github.com/oblanch/PescoidProject.git
+cd pescoid-modelling
+pip install -e .
+```
+
 ## Runtime requirements
 Each simulation depends on a set of parameters specified in `config.yaml`. Users can specify parameters for individual simulation runs, or upper and lower bounds for optimization. Simulation results get saved according to the yaml prefix, so specifying different configs allows an efficient and reproducible method for repeat runs.
 
 ## Examples
 Run simulations with:
 ```sh
-python \
-    /path/to/run_simulation.py \
-    --config /path/to/config.yaml \
-    --output_dir /path/to/outdir
+# single simulation
+pescoid simulate \
+  --config path/to/your/config.yaml \
+  --output_dir sim_out/
 ```
 
 Run CMA-ES optimization with:
 ```sh
-python \
-    /path/to/run_optimization.py \
-    --config /path/to/config.yaml \
-    --output_dir /path/to/outdir
+# full optimization
+pescoid optimize \
+  --config path/to/your/config.yaml \
+  --output_dir opt_out/
 ```
 
 ## Citation

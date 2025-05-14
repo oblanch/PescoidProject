@@ -3,15 +3,15 @@
 from dataclasses import asdict
 import multiprocessing as mp
 from pathlib import Path
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Mapping, Sequence, Tuple, Union
 
 import cma  # type: ignore
 import numpy as np
 import psutil  # type: ignore
 from tqdm import tqdm  # type: ignore
 
-from pescoid_modelling.config import SimulationParams
 from pescoid_modelling.simulation import PescoidSimulator
+from pescoid_modelling.utils.config import SimulationParams
 
 
 def get_physical_cores() -> int:
@@ -88,7 +88,7 @@ class CMAOptimizer:
             "popsize": 8,
         }
         if bounds is not None:
-            opts["bounds"] = list(bounds)
+            opts["bounds"] = [list(bounds[0]), list(bounds[1])]
 
         self.es = cma.CMAEvolutionStrategy(init_guess, sigma, opts)
 

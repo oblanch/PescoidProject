@@ -28,14 +28,14 @@ import numpy as np
 from tqdm import tqdm  # type: ignore
 from ufl import tanh  # type: ignore
 
-from pescoid_modelling.config import SimulationParams
-from pescoid_modelling.constants import LEADING_EDGE_THRESHOLD
-from pescoid_modelling.constants import M_SENSITIVITY
-from pescoid_modelling.constants import RHO_GATE_CENTER
-from pescoid_modelling.constants import RHO_GATE_WIDTH
-from pescoid_modelling.constants import RHO_SENSITIVITY
-from pescoid_modelling.constants import SNAPSHOT_EVERY_N_STEPS
-from pescoid_modelling.simulation_logger import SimulationLogger
+from pescoid_modelling.utils.config import SimulationParams
+from pescoid_modelling.utils.constants import LEADING_EDGE_THRESHOLD
+from pescoid_modelling.utils.constants import M_SENSITIVITY
+from pescoid_modelling.utils.constants import RHO_GATE_CENTER
+from pescoid_modelling.utils.constants import RHO_GATE_WIDTH
+from pescoid_modelling.utils.constants import RHO_SENSITIVITY
+from pescoid_modelling.utils.constants import SNAPSHOT_EVERY_N_STEPS
+from pescoid_modelling.utils.simulation_logger import SimulationLogger
 
 
 class PescoidSimulator:

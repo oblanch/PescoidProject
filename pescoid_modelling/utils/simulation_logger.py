@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from pescoid_modelling.constants import SNAPSHOT_EVERY_N_STEPS
+from pescoid_modelling.utils.constants import SNAPSHOT_EVERY_N_STEPS
 
 
 class SimulationLogger:
@@ -33,7 +33,12 @@ class SimulationLogger:
     ... )
     """
 
-    def __init__(self, num_steps, mesh_size, snapshot_interval=SNAPSHOT_EVERY_N_STEPS):
+    def __init__(
+        self,
+        num_steps: int,
+        mesh_size: int,
+        snapshot_interval: int = SNAPSHOT_EVERY_N_STEPS,
+    ) -> None:
         """Initialize the logger."""
         self.snapshot_interval = snapshot_interval
         self.max_snapshots = num_steps // snapshot_interval + 1

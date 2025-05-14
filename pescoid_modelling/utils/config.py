@@ -48,10 +48,14 @@ def _load_yaml(yaml_file: Union[Path, str]) -> Dict[str, Any]:
 
 
 def _ordered(mapping: Dict[str, float], cls) -> List[float]:
-    """Return a list of values from the mapping ordered by the dataclass
-    fields.
+    """Return values from following the dataclass field order casting each to
+    float.
     """
-    return [mapping[name] for name in (f.name for f in fields(cls)) if name in mapping]
+    return [
+        float(mapping[name])
+        for name in (f.name for f in fields(cls))
+        if name in mapping
+    ]
 
 
 def load_config(path: Union[str, Path]) -> Tuple[SimulationParams, CMAConfig]:
