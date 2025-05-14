@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
 
 import cma  # type: ignore
+from matplotlib import pyplot as plt
 import numpy as np
 import psutil  # type: ignore
 from tqdm import tqdm  # type: ignore
@@ -14,6 +15,8 @@ from pescoid_modelling.objective import ExperimentalData
 from pescoid_modelling.objective import optimization_objective
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import SimulationParams
+from pescoid_modelling.utils.constants import _ORDER
+from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
 
 def get_physical_cores() -> int:
@@ -28,18 +31,6 @@ def get_physical_cores() -> int:
 
 class CMAOptimizer:
     """Run CMA-ES to minimize an objective produced by PescoidSimulator."""
-
-    _ORDER = [
-        "length_scale",
-        "diffusivity",
-        "flow",
-        "tau_m",
-        "gamma",
-        "activity",
-        "beta",
-        "sigma_c",
-        "r",
-    ]
 
     def __init__(
         self,
@@ -112,28 +103,57 @@ class CMAOptimizer:
         Returns:
           Optimized simulation parameters
         """
+        logger = cma.CMADataLogger(str(self.work_dir / "cma_optimization_data"))
+        log_file = self.work_dir / "optimization_progress.csv"
+        with open(log_file, "w") as f:
+            f.write(
+                "iteration,evaluations,best_fitness,mean_fitness,sigma,axis_ratio\n"
+            )
+
+        iteration = 0
         with mp.Pool(processes=self.n_workers) as pool:
             while not self.es.stop():
+                iteration += 1
                 X = self.es.ask()
                 fitness: List[float] = list(
                     tqdm(
                         pool.imap(self._evaluate_individual, X),
                         total=len(X),
-                        desc="Evaluating population",
+                        desc=f"Iteration {iteration}: Evaluating population",
                     )
                 )
                 self.es.tell(X, fitness)
                 self.es.disp()
 
+                logger.add(self.es)
+                with open(log_file, "a") as f:
+                    f.write(
+                        f"{iteration},{self.es.countevals},{self.es.result.fbest},"
+                        f"{np.mean(fitness)},{self.es.sigma},"
+                        f"{self.es.D.max()/self.es.D.min()}\n"  # type: ignore
+                    )
+
+        self._generate_optimization_plots(logger)
         best_x = self.es.result.xbest
         return self.vector_to_params(best_x, self.base_params)
 
-    @classmethod
-    def vector_to_params(
-        cls, v: List[float], base: SimulationParams
-    ) -> SimulationParams:
+    def _generate_optimization_plots(self, logger: cma.CMADataLogger) -> None:
+        """Generate and save optimization plots."""
+        _set_matplotlib_publication_parameters()
+        logger.plot()
+        figures = plt.get_fignums()
+        for fig_num in figures:
+            fig = plt.figure(fig_num)
+            fig.savefig(self.work_dir / f"cma_plot_{fig_num}.png", dpi=450)
+
+        plt.close("all")
+
+        print(f"Optimization plots saved to {self.work_dir}")
+
+    @staticmethod
+    def vector_to_params(v: List[float], base: SimulationParams) -> SimulationParams:
         """Convert a vector of parameter values to SimulationParams."""
         kwargs = asdict(base)
-        for k, val in zip(cls._ORDER, v):
+        for k, val in zip(_ORDER, v):
             kwargs[k] = val
         return SimulationParams(**kwargs)

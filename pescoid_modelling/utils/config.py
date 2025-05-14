@@ -8,6 +8,20 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml  # type: ignore
 
+from pescoid_modelling.utils.constants import _ORDER
+
+_ORDER = [
+    "length_scale",
+    "diffusivity",
+    "flow",
+    "tau_m",
+    "gamma",
+    "activity",
+    "beta",
+    "sigma_c",
+    "r",
+]
+
 
 @dataclass(frozen=True)
 class SimulationParams:
@@ -47,17 +61,6 @@ def _load_yaml(yaml_file: Union[Path, str]) -> Dict[str, Any]:
         return yaml.safe_load(stream)
 
 
-def _ordered(mapping: Dict[str, float], cls) -> List[float]:
-    """Return values from following the dataclass field order casting each to
-    float.
-    """
-    return [
-        float(mapping[name])
-        for name in (f.name for f in fields(cls))
-        if name in mapping
-    ]
-
-
 def load_config(path: Union[str, Path]) -> Tuple[SimulationParams, CMAConfig]:
     """Return parameters from YAML."""
     data = _load_yaml(path)
@@ -67,9 +70,9 @@ def load_config(path: Union[str, Path]) -> Tuple[SimulationParams, CMAConfig]:
     if cma_raw is None:
         raise ValueError("Missing 'cma' configuration in YAML file")
 
-    x0_vec = _ordered(cma_raw["x0"], SimulationParams)
-    lower_vec = _ordered(cma_raw["bounds"]["lower"], SimulationParams)
-    upper_vec = _ordered(cma_raw["bounds"]["upper"], SimulationParams)
+    x0_vec = [float(cma_raw["x0"][k]) for k in _ORDER]
+    lower_vec = [float(cma_raw["bounds"]["lower"][k]) for k in _ORDER]
+    upper_vec = [float(cma_raw["bounds"]["upper"][k]) for k in _ORDER]
 
     cma = CMAConfig(
         x0=x0_vec,

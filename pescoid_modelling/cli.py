@@ -8,6 +8,7 @@ import sys
 from pescoid_modelling.optimizer import CMAOptimizer
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import load_config
+from pescoid_modelling.utils.constants import _ORDER
 
 _LOG_FORMAT = "%(asctime)s | %(levelname)-8s | " "%(name)s:%(lineno)d - %(message)s"
 logging.basicConfig(
@@ -102,7 +103,7 @@ def _cmd_optimize(args: argparse.Namespace) -> None:
     with open(out_txt, "w") as output:
         output.write("# Optimised pescoid parameters\n")
         output.write("# ----------------------------\n")
-        for name in optimizer._ORDER:
+        for name in _ORDER:
             output.write(f"{name}: {getattr(best_params, name)}\n")
     LOGGER.info(f"Best parameters written --> {out_txt}")
 
