@@ -258,7 +258,7 @@ class PescoidSimulator:
             self._dt_const * self._diffusivity_const * rho.dx(0) * t_rho.dx(0) * dx  # type: ignore
         )
         advection = (
-            -self._dt_const * self._flow_const * u_prev * rho_prev.dx(0) * t_rho * dx  # type: ignore
+            -self._dt_const * self._flow_const * u_prev * rho_prev * t_rho.dx(0) * dx  # type: ignore
         )
         reaction = (
             -self._dt_const * rho_prev * (self._one_const - rho_prev) * t_rho * dx  # type: ignore
@@ -449,22 +449,22 @@ class PescoidSimulator:
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""
         lhs_form, rhs_form = self._forms
-        solve(lhs_form == rhs_form, self._current_state)
-        self._previous_state.assign(self._current_state)
+        k = Function(self._mixed_function_space)
+        solve(lhs_form == rhs_form, k)
 
         # Extract components
-        rho_fn, m_fn, u_fn = self._current_state.split(deepcopy=True)
-
-        if self._check_for_errant_values(rho_fn) or self._check_for_errant_values(m_fn):
+        rho_new, m_new, u_new = k.split(deepcopy=True)
+        if self._check_for_errant_values(rho_new) or self._check_for_errant_values(
+            m_new
+        ):
             return False
 
-        # Create separate scalar space for non-negative projection
-        scalar_space = FunctionSpace(self._mesh, "CG", 1)
-        corrected_expr = conditional(lt(rho_fn, 0), Constant(0.0), rho_fn)
-        corrected_rho = project(corrected_expr, scalar_space)
+        # Correct density
+        rho_new = self._ensure_non_negative(rho_new)
+        assign(k.sub(0), rho_new)
 
-        # Assign back to the component
-        assign(self._current_state.sub(0), corrected_rho)
+        self._previous_state.assign(k)
+        self._current_state.assign(self._previous_state)
 
         self._log_simulation_state(step_idx)
         return True
