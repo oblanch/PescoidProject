@@ -42,15 +42,14 @@ class CMAOptimizer:
 
     _ORDER = [
         "length_scale",
-        "Delta",
-        "Flow",
+        "diffusivity",
+        "flow",
         "tau_m",
-        "Gamma",
-        "Activity",
-        "Beta",
-        "Sigma_c",
-        "R",
-        "delta_t",
+        "gamma",
+        "activity",
+        "beta",
+        "sigma_c",
+        "r",
     ]
 
     def __init__(
