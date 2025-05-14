@@ -35,7 +35,7 @@ class CMAConfig:
 
     x0: List[float]
     sigma0: float
-    popsize: Optional[int]
+    popsize: int
     bounds: Tuple[List[float], List[float]]
     max_evals: int
     n_restarts: int
@@ -74,7 +74,7 @@ def load_config(path: Union[str, Path]) -> Tuple[SimulationParams, CMAConfig]:
     cma = CMAConfig(
         x0=x0_vec,
         sigma0=float(cma_raw["sigma0"]),
-        popsize=cma_raw.get("popsize") or None,
+        popsize=cma_raw.get("popsize"),
         bounds=(lower_vec, upper_vec),
         max_evals=int(cma_raw["max_evals"]),
         n_restarts=int(cma_raw.get("n_restarts", 0)),

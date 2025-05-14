@@ -87,12 +87,13 @@ def _cmd_optimize(args: argparse.Namespace) -> None:
 
     # Initialize and run optimizer
     optimizer = CMAOptimizer(
-        work_root=work_dir,
+        work_dir=work_dir,
         base_params=sim_params,
         init_guess=cma_cfg.x0,
         sigma=cma_cfg.sigma0,
         bounds=cma_cfg.bounds,
         max_evals=cma_cfg.max_evals,
+        popsize=cma_cfg.popsize,
     )
     LOGGER.info("Running CMA-ES optimisation.")
     best_params = optimizer.optimize()
@@ -127,6 +128,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "optimize", help="Run CMA-ES to optimise pescoid parameters."
     )
     _add_common_args(opt_parser)
+    opt_parser.add_argument(
+        "--experimental_csv",
+        type=str,
+        default=None,
+        help="path/to/experimental_data.csv (experimental data with columns: ",
+    )
     opt_parser.set_defaults(func=_cmd_optimize)
 
     return parser

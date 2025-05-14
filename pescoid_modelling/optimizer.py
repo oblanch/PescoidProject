@@ -3,13 +3,15 @@
 from dataclasses import asdict
 import multiprocessing as mp
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, Sequence, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import cma  # type: ignore
 import numpy as np
 import psutil  # type: ignore
 from tqdm import tqdm  # type: ignore
 
+from pescoid_modelling.objective import ExperimentalData
+from pescoid_modelling.objective import optimization_objective
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import SimulationParams
 
@@ -22,19 +24,6 @@ def get_physical_cores() -> int:
     if cores is None or cores <= 1:
         return 1
     return cores - 1
-
-
-def optimization_objective(results: Dict[str, np.ndarray]) -> float:
-    """Objective function that evaluates simulation results based on transition
-    dynamics and mesoderm timing. For now, we use a simple objective based on
-    minimizing the difference in the final boundary position.
-    """
-    boundary_positions = results.get("boundary_positions", np.array([0.0]))
-    if len(boundary_positions) == 0:
-        return 1e9  # Large penalty for failed simulations
-
-    # Use the last boundary position as the objective
-    return float(boundary_positions[-1] ** 2)
 
 
 class CMAOptimizer:
@@ -54,38 +43,39 @@ class CMAOptimizer:
 
     def __init__(
         self,
-        work_root: Path,
+        work_dir: Path,
         base_params: SimulationParams,
         init_guess: List[float],
         sigma: float,
+        experimental_data: Optional[ExperimentalData] = None,
         bounds: Union[Tuple[List[float], List[float]], None] = None,
         max_evals: int = 256,
-        obj_fn: Callable[[Dict[str, np.ndarray]], float] = optimization_objective,
+        popsize: int = 8,
+        objective_function: Callable[..., float] = optimization_objective,
     ) -> None:
         """Initialize the CMA-ES optimizer.
 
         Args:
-            work_root: Directory to store simulation results
+            work_dir: Directory to store simulation results
             base_params: Base simulation parameters
             init_guess: Initial parameter vector
             sigma: Initial step size
             bounds: Parameter bounds as (lower_bounds, upper_bounds)
             max_evals: Maximum number of function evaluations
-            obj_fn: Objective function to minimize
+            objective_function: Objective function to minimize
             n_workers: Number of parallel workers (defaults to CPU count - 1)
         """
         self.base_params = base_params
-        self.obj_fn = obj_fn
-        self.max_evals = max_evals
-        self.work_root = work_root
-        self.work_root.mkdir(parents=True, exist_ok=True)
+        self.objective_function = objective_function
+        self.experimental_data = experimental_data
+        self.work_dir = work_dir
 
         self.n_workers = get_physical_cores()
 
         opts: dict = {
             "verb_disp": 1,
             "maxfevals": max_evals,
-            "popsize": 8,
+            "popsize": popsize,
         }
         if bounds is not None:
             opts["bounds"] = [list(bounds[0]), list(bounds[1])]
@@ -96,15 +86,15 @@ class CMAOptimizer:
         """Evaluate a single parameter vector by running a simulation.
 
         Args:
-            x: Parameter vector to evaluate
+          x: Parameter vector to evaluate
 
         Returns:
-            Objective function value (lower is better)
+          Objective function value (lower is better)
         """
         # Unique hash for caching
         p = self.vector_to_params(x, self.base_params)
         param_hash = hash(tuple(x))
-        job_dir = self.work_root / f"sim_{param_hash:x}"
+        job_dir = self.work_dir / f"sim_{param_hash:x}"
 
         simulator = PescoidSimulator(p, job_dir)
         try:
@@ -114,13 +104,13 @@ class CMAOptimizer:
             print(f"Simulation failure ({exc}), penalizing...")
             return 1e9
 
-        return self.obj_fn(results)
+        return self.objective_function(results, self.experimental_data)
 
     def optimize(self) -> SimulationParams:
         """Run the CMA-ES optimization process.
 
         Returns:
-            Optimized simulation parameters
+          Optimized simulation parameters
         """
         with mp.Pool(processes=self.n_workers) as pool:
             while not self.es.stop():

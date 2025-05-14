@@ -29,9 +29,9 @@ cma:
     r: 1.0
   
   sigma0: 0.2
-  max_evals: 3000
-  popsize: 16
-  n_restarts: 2
+  max_evals: 9000
+  popsize: 32
+  n_restarts: 5
   
   bounds:
     lower:
