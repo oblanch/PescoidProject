@@ -29,29 +29,29 @@ cma:
     r: 1.0
   
   sigma0: 0.2
-  max_evals: 1500
+  max_evals: 3000
   popsize: 16
   n_restarts: 2
   
   bounds:
     lower:
-      diffusivity: 0.0005
-      tau_m: 3.0
-      length_scale: 0.5
-      flow: 0.1
-      activity: 0.8
+      diffusivity: 1e-4
+      tau_m: 1.0
+      length_scale: 0.2
+      flow: 0.005
+      activity: 0.5
       beta: 0.0
       gamma: 0.005
       sigma_c: 0.0
-      r: 0.5
+      r: 0.1
     
     upper:
-      diffusivity: 0.005
-      tau_m: 12.0
-      length_scale: 2.0
-      flow: 1.0
-      activity: 2.0
-      beta: 0.6
-      gamma: 0.05
-      sigma_c: 2.0
-      r: 5.0
+      diffusivity: 1e-2
+      tau_m: 24.0
+      length_scale: 4.0
+      flow: 2.0
+      activity: 3.0
+      beta: 1.0
+      gamma: 0.1
+      sigma_c: 5.0
+      r: 10.0
