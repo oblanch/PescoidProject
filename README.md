@@ -1,8 +1,51 @@
-# Pescoid Simulation Basics
-The one-dimensional active fluid dynamic simulation is run using a finite element differential equation solver, FENICS. We are using the legacy version 2019.1.0, not FENICSX, which has some slight differences. In the requirement file I have outlined what is necessary to run the program as well as some python packages that improve quality of life.
+# Pescoid fluid dynamics simulation
+A computational model simulating tissue morphogenesis as an active fluid system in one dimension. This project implements coupled partial differential equations (PDEs) that capture:
 
-# Scipt Purposes
-1. 'nondim_pesc_v14.py' is core of the simulation. It produced results for a given parameter set and then saves them into '_pycache_'. This is the script that we would like to have processed in parallel, where each core handles a subset of the finite element mesh.
-2. 'state_diagram_v5.py' is meant to run the simulation over a range of parameter values and save those values into a cach. If we can parallel process such that we cover different parts of the parameter values range with different cores, that would be ideal.
-3. 'pescoid_plotting_v7.py' is the plotting code for individual simulations
-4. 'trial_sim.py' allows you to run an individual simulation
+* Tissue growth and density dynamics
+* Mesoderm differentiation with feedback mechanisms
+* Mechanical force balance with active stresses
+
+The simulation is implemented using FEniCS for robust finite element PDE solving and CMA-ES for parameter optimization to fit the model to experimental data.
+
+## Installation
+This package utilizes legacy FENICS. To install:
+```sh
+# Create environment with legacy FEniCS
+conda create -n pescoid python=3.11 -y
+conda install -n pescoid -c conda-forge fenics -y`
+
+# Install required packages
+conda activate pescoid
+pip install -r requirements.txt
+```
+
+## Runtime requirements
+Each simulation depends on a set of parameters specified in `config.yaml`. Users can specify parameters for individual simulation runs, or upper and lower bounds for optimization. Simulation results get saved according to the yaml prefix, so specifying different configs allows an efficient and reproducible method for repeat runs.
+
+## Examples
+Run simulations with:
+```sh
+python \
+    /path/to/run_simulation.py \
+    --config /path/to/config.yaml \
+    --output_dir /path/to/outdir
+```
+
+Run CMA-ES optimization with:
+```sh
+python \
+    /path/to/run_optimization.py \
+    --config /path/to/config.yaml \
+    --output_dir /path/to/outdir
+```
+
+## Citation
+```bibtex
+@article{Kadiyala/Yang/2025,
+  author       = {Kadiyala, U.*, Blanchard, O.*, Marschlich, N.*, et al.},
+  title        = {Active wetting and dewetting dynamics of zebrafish embryonic explants},
+  year         = {2025},
+  doi          = {Coming soon},
+  url          = {Coming soon},
+  note         = {Preprint}
+}

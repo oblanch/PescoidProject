@@ -17,15 +17,14 @@ simulation:
 
 # Optimization configuration
 cma:
-  # Initial parameter values (start point for optimization)
-  x0:
-    diffusivity: 0.001
+  x0:  # Init 
+    diffusivity: 1e-3
     tau_m: 6.0
     length_scale: 1.0
-    flow: 0.3
-    activity: 1.25
-    beta: 0.25
-    gamma: 0.01
+    flow: 3e-1
+    activity: 1.15
+    beta: 0.45
+    gamma: 1e-2
     sigma_c: 0.0
     r: 1.0
   
