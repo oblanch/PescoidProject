@@ -1,0 +1,58 @@
+# Model configuration
+simulation:
+  delta_t: 0.1  # time step (t_g units)
+  total_hours: 12.0  # simulated biological time [h]
+  domain_length: 10.0  # physical domain size (x ∈ [−L/2, L/2])
+  dx_interval: 0.005 # IntervalMesh spacing
+  diffusivity: 0.001 # Delta ρ and m diffusion coefficient
+  tau_m: 6.0  # T_m mesoderm relaxation time
+  length_scale: 1.0  # L_0
+  flow: 0.3  # F
+  activity: 1.25  # A (active stress amplitude)
+  beta: 0.25  # β (stress sensitivity to m)
+  gamma: 0.01  # γ (visco-elastic damping)
+  sigma_c: 0.0  # σ_c (critical stress)
+  r: 1.0  # R (sharpness of tanh switch)
+  feedback_mode: strain_rate  # strain_rate or active_stress
+
+# Optimization configuration
+cma:
+  # Initial parameter values (start point for optimization)
+  x0:
+    diffusivity: 0.001
+    tau_m: 6.0
+    length_scale: 1.0
+    flow: 0.3
+    activity: 1.25
+    beta: 0.25
+    gamma: 0.01
+    sigma_c: 0.0
+    r: 1.0
+  
+  sigma0: 0.2
+  max_evals: 1500
+  popsize: 16
+  n_restarts: 2
+  
+  bounds:
+    lower:
+      diffusivity: 0.0005
+      tau_m: 3.0
+      length_scale: 0.5
+      flow: 0.1
+      activity: 0.8
+      beta: 0.0
+      gamma: 0.005
+      sigma_c: 0.0
+      r: 0.5
+    
+    upper:
+      diffusivity: 0.005
+      tau_m: 12.0
+      length_scale: 2.0
+      flow: 1.0
+      activity: 2.0
+      beta: 0.6
+      gamma: 0.05
+      sigma_c: 2.0
+      r: 5.0
