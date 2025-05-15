@@ -298,9 +298,9 @@ class PescoidSimulator:
         )
 
         if feedback_mode == "strain_rate":
-            feedback = self._formulate_strain_rate_feedback(rho_prev, m_prev, t_m)
+            feedback = self._formulate_strain_rate_feedback(u_prev, t_m)
         else:  # active_stress
-            feedback = self._formulate_active_stress_feedback(u_prev, t_m)
+            feedback = self._formulate_active_stress_feedback(rho_prev, m_prev, t_m)
 
         diffusion = self._dt_const * self._diffusivity_const * m.dx(0) * t_m.dx(0) * dx  # type: ignore
         advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * t_m * dx  # type: ignore
@@ -488,18 +488,30 @@ class PescoidSimulator:
     def _compute_stress(self, rho_fn: Function, m_fn: Function) -> np.ndarray:
         """Compute stress based on the current state."""
         scalar_space = FunctionSpace(self._mesh, "CG", 1)
-        stress_expression = (
-            rho_fn
-            * self.params.activity  # type: ignore
-            * (rho_fn / (1 + RHO_SENSITIVITY * rho_fn * rho_fn))  # type: ignore
+        rho_projected = project(rho_fn, scalar_space)
+        m_projected = project(m_fn, scalar_space)
+
+        rho_vals = rho_projected.vector().get_local().astype(float)
+        m_vals = m_projected.vector().get_local().astype(float)
+
+        stress_vals = (
+            rho_vals
+            * float(self.params.activity)
+            * (rho_vals / (1.0 + float(RHO_SENSITIVITY) * rho_vals * rho_vals))
             * (
-                1
-                + self.params.beta
-                * ((tanh((m_fn - M_SENSITIVITY) / M_SENSITIVITY) + 1) / 2)  # type: ignore
+                1.0
+                + float(self.params.beta)
+                * (
+                    (
+                        np.tanh((m_vals - float(M_SENSITIVITY)) / float(M_SENSITIVITY))
+                        + 1.0
+                    )
+                    / 2.0
+                )
             )
         )
-        stress_fn = project(stress_expression, scalar_space)
-        return stress_fn.vector().get_local()
+
+        return stress_vals
 
     def _compute_leading_edge(
         self, rho_vals: np.ndarray, x_coords: np.ndarray
