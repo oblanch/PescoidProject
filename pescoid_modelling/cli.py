@@ -9,6 +9,7 @@ from pescoid_modelling.optimizer import CMAOptimizer
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import load_config
 from pescoid_modelling.utils.constants import _ORDER
+from pescoid_modelling.visualization.plot_simulation import visualize_simulation_results
 
 _LOG_FORMAT = "%(asctime)s | %(levelname)-8s | " "%(name)s:%(lineno)d - %(message)s"
 logging.basicConfig(
@@ -73,6 +74,13 @@ def _cmd_simulate(args: argparse.Namespace) -> None:
     results = simulator.results
     if results.get("aborted", [False])[0]:
         LOGGER.warning("Simulation aborted before completion.")
+    else:
+        LOGGER.info("Simulation completed successfully.")
+        LOGGER.info("Visualizing simulation results.")
+        visualize_simulation_results(
+            data_path=str(out_npz),
+            output_dir=str(work_dir),
+        )
 
 
 def _cmd_optimize(args: argparse.Namespace) -> None:
