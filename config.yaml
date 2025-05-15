@@ -17,21 +17,21 @@ simulation:
 
 # Optimization configuration
 cma:
-  x0:  # Init 
-    diffusivity: 1e-3
-    tau_m: 6.0
-    length_scale: 1.0
-    flow: 3e-1
-    activity: 1.15
-    beta: 0.45
-    gamma: 1e-2
-    sigma_c: 0.0
-    r: 1.0
+  x0:  # init
+    diffusivity: 0.0088
+    tau_m: 7.06
+    length_scale: 1.13
+    flow: 0.155
+    activity: 0.54
+    beta: 0.497
+    gamma: 0.016
+    sigma_c: 0.11
+    r: 1.74
   
-  sigma0: 0.2
+  sigma0: 0.15
   max_evals: 3000
   popsize: 16
-  n_restarts: 2
+  n_restarts: 3
   
   bounds:
     lower:
@@ -39,14 +39,14 @@ cma:
       tau_m: 1.0
       length_scale: 0.2
       flow: 0.005
-      activity: 0.5
+      activity: 0.3
       beta: 0.0
       gamma: 0.005
       sigma_c: 0.0
       r: 0.1
     
     upper:
-      diffusivity: 1e-2
+      diffusivity: 5e-2
       tau_m: 24.0
       length_scale: 4.0
       flow: 2.0
