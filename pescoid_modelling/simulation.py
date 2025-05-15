@@ -307,7 +307,7 @@ class PescoidSimulator:
         # Complete residual
         return temporal - common_decay - feedback + diffusion + advection
 
-    def _formulate_strain_rate_feedback(
+    def _formulate_active_stress_feedback(
         self,
         rho_prev: Function,
         m_prev: Function,
@@ -358,7 +358,7 @@ class PescoidSimulator:
             * dx
         )
 
-    def _formulate_active_stress_feedback(
+    def _formulate_strain_rate_feedback(
         self,
         u_prev: Function,
         t_m: Function,
@@ -387,7 +387,7 @@ class PescoidSimulator:
         """Formulate the variational form for tissue velocity (force balance
         equation):
 
-        rho_gate * Gamma * u + rho_gate * d u / dx = div(stress)
+        rho_gate * Gamma * u - rho_gate * d^2 u / dx^2 = div(active_stress)
         """
         rho_gate = self._half_const * (
             tanh((rho_prev - self._rho_gate_center_const) / self._rho_gate_width_const)  # type: ignore
@@ -395,15 +395,15 @@ class PescoidSimulator:
         )
 
         # Stress divergence term
-        stress_div = self._calculate_stress_divergence(rho_prev, m_prev)
+        active_stress_div = self._calculate_stress_divergence(rho_prev, m_prev)
 
         # Build equation terms
-        momentum = rho_gate * self._gamma_const * u * t_u * dx
+        friction = rho_gate * self._gamma_const * u * t_u * dx
         viscosity = rho_gate * u.dx(0) * t_u.dx(0) * dx  # type: ignore
-        force = stress_div * t_u * dx  # type: ignore
+        force = active_stress_div * t_u * dx  # type: ignore
 
         # Return complete form
-        return momentum + viscosity - force
+        return friction + viscosity - force
 
     def _calculate_stress_divergence(
         self, rho_prev: Function, m_prev: Function
@@ -419,7 +419,7 @@ class PescoidSimulator:
                 * ((tanh((mesoderm_prev - M_SENSITIVITY)/M_SENSITIVITY) + 1)/2)
             ) - 1]
         """
-        stress = (
+        active_stress = (
             rho_prev
             * self._activity_const  # type: ignore
             * (
@@ -444,7 +444,7 @@ class PescoidSimulator:
         )
 
         # Return divergence
-        return stress.dx(0)
+        return active_stress.dx(0)
 
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""

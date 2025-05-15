@@ -10,10 +10,10 @@ import numpy as np
 class SimulationState(IntEnum):
     """Classification of simulation outcomes."""
 
-    LATE_TRANSITION = 0  # Late or minimal transition
+    LATE_TRANSITION = 0  # Minimal or no transition transition
     NORMAL_TRANSITION = 1  # Normal transition
     EARLY_TRANSITION = 2  # Early or minimal transition
-    INVALID = 3  # Invalid or no transition
+    INVALID = 3  # Invalid or nan transition
 
 
 @dataclass
