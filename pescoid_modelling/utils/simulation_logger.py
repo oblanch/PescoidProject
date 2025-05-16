@@ -11,26 +11,26 @@ class SimulationLogger:
     Finally, the class trims each array to the number of snapshots taken.
 
     Examples::
-    # Instantiate the logger
-    >>> logger = SimulationLogger(
-    ...     num_steps=num_steps,
-    ...     mesh_size=mesh_size,
-    ...     snapshot_interval=snapshot_interval,
-    ... )
+        # Instantiate the logger
+        >>> logger = SimulationLogger(
+        ...     num_steps=num_steps,
+        ...     mesh_size=mesh_size,
+        ...     snapshot_interval=snapshot_interval,
+        ... )
 
-    # Log a snapshot
-    >>> logger.log_snapshot(
-    ...     step_idx=step_idx,
-    ...     current_time=current_time,
-    ...     rho_vals=rho_vals,
-    ...     m_vals=m_vals,
-    ...     u_vals=u_vals,
-    ...     stress_vals=stress_vals,
-    ...     edge_x=edge_x,
-    ...     edge_idx=edge_idx,
-    ...     meso_frac=meso_frac,
-    ...     max_m=max_m,
-    ... )
+        # Log a snapshot
+        >>> logger.log_snapshot(
+        ...     step_idx=step_idx,
+        ...     current_time=current_time,
+        ...     rho_vals=rho_vals,
+        ...     m_vals=m_vals,
+        ...     u_vals=u_vals,
+        ...     stress_vals=stress_vals,
+        ...     edge_x=edge_x,
+        ...     edge_idx=edge_idx,
+        ...     meso_frac=meso_frac,
+        ...     max_m=max_m,
+        ... )
     """
 
     def __init__(

@@ -30,7 +30,26 @@ def get_physical_cores() -> int:
 
 
 class CMAOptimizer:
-    """Run CMA-ES to minimize an objective produced by PescoidSimulator."""
+    """Run CMA-ES to minimize an objective produced by PescoidSimulator.
+
+    Examples::
+        # Instantiate the optimizer
+        >>> optimizer = CMAOptimizer(
+        ...     work_dir=Path("path/to/work_dir"),
+        ...     base_params=SimulationParams(),
+        ...     init_guess=[1.0, 2.0, 3.0],
+        ...     sigma=0.5,
+        ...     experimental_data=ExperimentalData(),
+        ...     bounds=([0.0, 0.0, 0.0], [10.0, 10.0, 10.0]),
+        ...     max_evals=100,
+        ...     popsize=8,
+        ...     objective_function=optimization_objective,
+        ... )
+
+        # Run the optimization and return the best parameters
+        >>> optimized_params = optimizer.optimize()
+
+    """
 
     def __init__(
         self,
