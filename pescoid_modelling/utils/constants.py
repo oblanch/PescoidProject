@@ -17,4 +17,6 @@ _ORDER = [
     "beta",
     "sigma_c",
     "r",
+    "rho_sensitivity",
+    "m_sensitivity",
 ]

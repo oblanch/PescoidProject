@@ -1,18 +1,20 @@
 # Model configuration
 simulation:
-  delta_t: 0.1 # time step (t_g units)
+  delta_t: 0.1  # time step (t_g units)
   total_hours: 12.0  # simulated biological time [h]
   domain_length: 10.0  # physical domain size (x ∈ [−L/2, L/2])
   dx_interval: 0.005 # IntervalMesh spacing
-  diffusivity: 1e-3 # Delta ρ and m diffusion coefficient
-  tau_m: 6e0  # T_m mesoderm relaxation time
+  diffusivity: 1e-3 # δ diffusivity
+  tau_m: 6e0  # mesoderm growth timescale
   length_scale: 1.0  # L_0
-  flow: 3e-1  # F
-  activity: 1.15e0  # A (active stress amplitude)
-  beta: 0.45  # β (stress sensitivity to m)
-  gamma: 1e-2  # γ (visco-elastic damping)
+  flow: 3e-1  # F, advection or flow
+  activity: 1.15e0  # A
+  beta: 0.45  # β contribution of mesoderm fate to cell's contractility
+  gamma: 1e-2  # Γ friction coefficient
   sigma_c: 0.0  # σ_c (critical stress)
-  r: 1e0  # R (sharpness of tanh switch)
+  r: 1e0  # r sensitivity of cells to mechanical feedback
+  rho_sensitivity: 0.01  # sensitivity to ensure stress vanishes on the boundary of the tissue
+  m_sensitivity: 0.01  # sensitivity of the step function that increases contractility of cells expressing mesoderm
   feedback_mode: strain_rate  # strain_rate or active_stress
 
 # Optimization configuration

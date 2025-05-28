@@ -10,18 +10,6 @@ import yaml  # type: ignore
 
 from pescoid_modelling.utils.constants import _ORDER
 
-_ORDER = [
-    "length_scale",
-    "diffusivity",
-    "flow",
-    "tau_m",
-    "gamma",
-    "activity",
-    "beta",
-    "sigma_c",
-    "r",
-]
-
 
 @dataclass(frozen=True)
 class SimulationParams:
@@ -40,6 +28,8 @@ class SimulationParams:
     gamma: float
     sigma_c: float
     r: float
+    rho_sensitivity: float
+    m_sensitivity: float
     feedback_mode: str = "strain_rate"
 
 

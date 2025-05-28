@@ -30,10 +30,8 @@ from ufl import tanh  # type: ignore
 
 from pescoid_modelling.utils.config import SimulationParams
 from pescoid_modelling.utils.constants import LEADING_EDGE_THRESHOLD
-from pescoid_modelling.utils.constants import M_SENSITIVITY
 from pescoid_modelling.utils.constants import RHO_GATE_CENTER
 from pescoid_modelling.utils.constants import RHO_GATE_WIDTH
-from pescoid_modelling.utils.constants import RHO_SENSITIVITY
 from pescoid_modelling.utils.constants import SNAPSHOT_EVERY_N_STEPS
 from pescoid_modelling.utils.simulation_logger import SimulationLogger
 
@@ -105,10 +103,10 @@ class PescoidSimulator:
         self._r_const = Constant(self.params.r)
         self._sigma_c_const = Constant(self.params.sigma_c)
         self._gamma_const = Constant(self.params.gamma)
+        self._rho_sensitivity_const = Constant(self.params.rho_sensitivity)
+        self._m_sensitivity_const = Constant(self.params.m_sensitivity)
 
         # Imported constants
-        self._rho_sensitivity_const = Constant(RHO_SENSITIVITY)
-        self._m_sensitivity_const = Constant(M_SENSITIVITY)
         self._rho_gate_center_const = Constant(RHO_GATE_CENTER)
         self._rho_gate_width_const = Constant(RHO_GATE_WIDTH)
 
@@ -324,9 +322,9 @@ class PescoidSimulator:
         where
 
         stress_term = density_prev * Activity
-        * (density_prev/(1 + RHO_SENSITIVITY * density_prev^2))
+        * (density_prev/(1 + self._rho_sensitivity_const * density_prev^2))
         * (1 + Beta * (
-            (tanh((mesoderm_prev - M_SENSITIVITY)/M_SENSITIVITY) + 1)/2)
+            (tanh((mesoderm_prev - self._m_sensitivity_const)/self._m_sensitivity_const) + 1)/2)
         )
         """
         stress_term = (
@@ -416,11 +414,11 @@ class PescoidSimulator:
 
         d/dx [density_prev
             * Activity
-            * (density_prev/(1 + RHO_SENSITIVITY * density_prev^2))
+            * (density_prev/(1 + self._rho_sensitivity_const * density_prev^2))
             * (
                 1
                 + Beta
-                * ((tanh((mesoderm_prev - M_SENSITIVITY)/M_SENSITIVITY) + 1)/2)
+                * ((tanh((mesoderm_prev - self._m_sensitivity_const)/self._m_sensitivity_const) + 1)/2)
             ) - 1]
         """
         active_stress = (
@@ -501,13 +499,19 @@ class PescoidSimulator:
         stress_vals = (
             rho_vals
             * float(self.params.activity)
-            * (rho_vals / (1.0 + float(RHO_SENSITIVITY) * rho_vals * rho_vals))
+            * (
+                rho_vals
+                / (1.0 + float(self._rho_sensitivity_const) * rho_vals * rho_vals)
+            )
             * (
                 1.0
                 + float(self.params.beta)
                 * (
                     (
-                        np.tanh((m_vals - float(M_SENSITIVITY)) / float(M_SENSITIVITY))
+                        np.tanh(
+                            (m_vals - float(self._m_sensitivity_const))
+                            / float(self._m_sensitivity_const)
+                        )
                         + 1.0
                     )
                     / 2.0
