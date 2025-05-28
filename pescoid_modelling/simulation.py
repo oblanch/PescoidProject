@@ -29,6 +29,7 @@ from tqdm import tqdm  # type: ignore
 from ufl import tanh  # type: ignore
 
 from pescoid_modelling.utils.config import SimulationParams
+from pescoid_modelling.utils.constants import ETA
 from pescoid_modelling.utils.constants import LEADING_EDGE_THRESHOLD
 from pescoid_modelling.utils.constants import RHO_GATE_CENTER
 from pescoid_modelling.utils.constants import RHO_GATE_WIDTH
@@ -109,6 +110,7 @@ class PescoidSimulator:
         # Imported constants
         self._rho_gate_center_const = Constant(RHO_GATE_CENTER)
         self._rho_gate_width_const = Constant(RHO_GATE_WIDTH)
+        self._eta_const = Constant(ETA)
 
         # Utility constants
         self._one_const = Constant(1.0)
@@ -213,7 +215,6 @@ class PescoidSimulator:
 
     def _formulate_variational_problem(self) -> Tuple[Expression, Expression]:
         """Build the variational forms for the PDEs."""
-        # split unknowns / tests
         rho_prev, m_prev, u_prev = split(self._previous_state)  # type: ignore
         rho, m, u = TrialFunctions(self._mixed_function_space)  # type: ignore
         t_rho, t_m, t_u = TestFunctions(self._mixed_function_space)  # type: ignore
@@ -306,6 +307,7 @@ class PescoidSimulator:
 
         diffusion = self._dt_const * self._diffusivity_const * m.dx(0) * t_m.dx(0) * dx  # type: ignore
         advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * t_m * dx  # type: ignore
+
         # Complete residual
         return temporal - common_decay - feedback + diffusion + advection
 
@@ -315,19 +317,20 @@ class PescoidSimulator:
         m_prev: Function,
         t_m: Function,
     ) -> Form:
-        """Formulate the strain rate feedback term for mesoderm differentiation:
+        """Formulate the active-stress feedback term for mesoderm differentiation:
 
-        (1/tau_m) * R * (stress_term - Sigma_c)
+        (1/tau_m) * R * (sigma_a - Sigma_c)
 
         where
 
-        stress_term = density_prev * Activity
+        sigma_a = density_prev * Activity  # stress_term
         * (density_prev/(1 + self._rho_sensitivity_const * density_prev^2))
         * (1 + Beta * (
             (tanh((mesoderm_prev - self._m_sensitivity_const)/self._m_sensitivity_const) + 1)/2)
         )
         """
-        stress_term = (
+        # active-stress cue, sigma_a
+        cue = (
             rho_prev  # type: ignore
             * self._activity_const
             * (
@@ -350,12 +353,12 @@ class PescoidSimulator:
             )
         )
 
-        # Return feedback term
+        # full feedback term
         return (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
             * self._r_const
-            * (stress_term - self._sigma_c_const)
+            * (cue - self._sigma_c_const)
             * t_m
             * dx
         )
@@ -368,13 +371,17 @@ class PescoidSimulator:
         """Formulate the active stress feedback term for mesoderm
         differentiation:
 
-        (1/tau_m) * R * (Sigma_c - velocity_prev.dx(0))
+        (1/τₘ) · R · [ (-η ∂x v_prev) - sigma_c ]
+
+        R remains positive and the sign flip is built into the cue.
         """
+        cue = -self._eta_const * u_prev.dx(0)  # type: ignore
+
         return (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
             * self._r_const
-            * (self._sigma_c_const - u_prev.dx(0))  # type: ignore
+            * (cue - self._sigma_c_const)  # type: ignore
             * t_m
             * dx
         )
@@ -404,7 +411,7 @@ class PescoidSimulator:
         viscosity = rho_gate * u.dx(0) * t_u.dx(0) * dx  # type: ignore
         force = active_stress_div * t_u * dx  # type: ignore
 
-        # Return complete form
+        # complete form
         return friction + viscosity - force
 
     def _calculate_stress_divergence(
@@ -445,7 +452,7 @@ class PescoidSimulator:
             - self._one_const
         )
 
-        # Return divergence
+        # divergence
         return active_stress.dx(0)
 
     def _advance(self, step_idx: int) -> bool:
