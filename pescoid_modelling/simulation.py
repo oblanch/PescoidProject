@@ -70,7 +70,11 @@ class PescoidSimulator:
       >>> results = simulator.results
     """
 
-    def __init__(self, parameters: SimulationParams, work_dir: str | Path) -> None:
+    def __init__(
+        self,
+        parameters: SimulationParams,
+        work_dir: str | Path,
+    ) -> None:
         """Initialize the simulator class."""
         self.params = parameters
         self.aborted: bool = False

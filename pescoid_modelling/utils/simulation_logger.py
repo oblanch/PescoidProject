@@ -33,6 +33,8 @@ class SimulationLogger:
         ... )
     """
 
+    SNAPSHOT_INTERVAL: int = 1
+
     def __init__(
         self,
         num_steps: int,
@@ -113,6 +115,9 @@ class SimulationLogger:
     def to_dict(self) -> dict:
         """Convert all logs to a dictionary for saving or analysis."""
         return {
+            "time": self.times,
+            "tissue_size": self.boundary_positions,
+            "mesoderm_signal": self.mesoderm_fraction,
             "density": self.density,
             "mesoderm": self.mesoderm,
             "velocity": self.velocity,

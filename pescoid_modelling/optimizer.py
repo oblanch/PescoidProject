@@ -3,7 +3,7 @@
 from dataclasses import asdict
 import multiprocessing as mp
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import cma  # type: ignore
 from matplotlib import pyplot as plt
@@ -11,7 +11,7 @@ import numpy as np
 import psutil  # type: ignore
 from tqdm import tqdm  # type: ignore
 
-from pescoid_modelling.objective import ExperimentalData
+from pescoid_modelling.objective import ExperimentalTrajectories
 from pescoid_modelling.objective import optimization_objective
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import SimulationParams
@@ -39,7 +39,7 @@ class CMAOptimizer:
         ...     base_params=SimulationParams(),
         ...     init_guess=[1.0, 2.0, 3.0],
         ...     sigma=0.5,
-        ...     experimental_data=ExperimentalData(),
+        ...     experimental_data=ExperimentalTrajectories(),
         ...     bounds=([0.0, 0.0, 0.0], [10.0, 10.0, 10.0]),
         ...     max_evals=100,
         ...     popsize=8,
@@ -57,7 +57,7 @@ class CMAOptimizer:
         base_params: SimulationParams,
         init_guess: List[float],
         sigma: float,
-        experimental_data: Optional[ExperimentalData] = None,
+        experimental_data: ExperimentalTrajectories,
         bounds: Union[Tuple[List[float], List[float]], None] = None,
         max_evals: int = 256,
         popsize: int = 8,
@@ -82,7 +82,7 @@ class CMAOptimizer:
 
         self.n_workers = get_physical_cores()
 
-        opts: dict = {
+        opts: Dict[str, Any] = {
             "verb_disp": 1,
             "maxfevals": max_evals,
             "popsize": popsize,
