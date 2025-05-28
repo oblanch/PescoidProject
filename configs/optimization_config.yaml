@@ -27,7 +27,7 @@ cma:
     activity: 2.5
     beta: 2.5
     gamma: 0.5005
-    sigma_c: 0.2835
+    sigma_c: 0.0
     r: 10.0
     rho_sensitivity: 10e-2
     m_sensitivity: 10e-2
@@ -59,7 +59,7 @@ cma:
       activity: 5.0
       beta: 5.0
       gamma: 1
-      sigma_c: 5.0
+      sigma_c: 1.0
       r: 20.0
       rho_sensitivity: 10e-1
       m_sensitivity: 10e-1
