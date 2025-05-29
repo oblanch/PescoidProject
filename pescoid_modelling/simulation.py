@@ -84,6 +84,20 @@ class PescoidSimulator:
         self._set_simulation_time()
         self._initialize_constants()
 
+        self._initial_radius: float | None = None
+
+    @property
+    def initial_radius(self) -> float:
+        """Leading-edge radius of the *initial* density profile (cached)."""
+        if self._initial_radius is None:
+            rho_fn, _, _ = self._previous_state.split()
+            rho_vals = rho_fn.compute_vertex_values(self._mesh)
+            x_coords = self._mesh.coordinates().flatten()
+
+            edge_x, _ = self._compute_leading_edge(rho_vals, x_coords)
+            self._initial_radius = edge_x
+        return self._initial_radius
+
     def _set_simulation_time(
         self, total_hours: float = 12.0, minutes_per_generation: float = 30.0
     ) -> None:
@@ -541,6 +555,15 @@ class PescoidSimulator:
             edge_idx = len(x_coords) - 1
         return edge_x, edge_idx
 
+    def _area_norm(self, edge_x: float) -> float:
+        """Calculate the normalized area based on the leading edge position.
+
+        A/(π r0²) = (edge_x/r0)²
+        """
+        return (
+            (edge_x / self.initial_radius) ** 2 if self.initial_radius else float("NaN")
+        )
+
     def _log_state(self, step_idx: int, current_time: float) -> None:
         """Calculate and log the simulation state."""
         rho_fn, m_fn, u_fn = self._current_state.split()
@@ -553,6 +576,7 @@ class PescoidSimulator:
 
         edge_x, edge_idx = self._compute_leading_edge(rho_vals, x_coords)
         stress_vals = self._compute_stress(rho_fn, m_fn)
+        area_star = self._area_norm(edge_x)
 
         self.logger.log_snapshot(
             step_idx=step_idx,
@@ -565,6 +589,7 @@ class PescoidSimulator:
             edge_idx=edge_idx,
             meso_frac=meso_frac,
             max_m=max_m,
+            area_star=area_star,
         )
 
     def save(self, file: str | Path) -> None:

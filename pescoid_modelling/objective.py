@@ -25,7 +25,7 @@ class ExperimentalTrajectories:
 
 def optimization_objective(
     results: Dict[str, np.ndarray],
-    exp_ts: ExperimentalTrajectories,
+    experimental_data: ExperimentalTrajectories,
 ) -> float:
     """Fitness cost function based on L2 norm of the mismatch between simulated
     and experimental trajectories of tissue size L(t) and mesoderm signal M(t).
@@ -35,7 +35,7 @@ def optimization_objective(
         - "time": time points
         - "tissue_size": L_sim(t)
         - "mesoderm_signal": M_sim(t)
-      exp_ts: Experimental trajectories to match.
+      experimental_data: Experimental trajectories to match.
 
     Returns:
       L2 error value. Returns 1e9 for invalid/failed simulations.
@@ -50,11 +50,11 @@ def optimization_objective(
     _check_simulation_results(t_sim, L_sim, M_sim)
 
     # Interpolate simulation data onto experimental time grid
-    L_sim_on_exp = np.interp(exp_ts.time, t_sim, L_sim)
-    M_sim_on_exp = np.interp(exp_ts.time, t_sim, M_sim)
+    L_sim_on_exp = np.interp(experimental_data.time, t_sim, L_sim)
+    M_sim_on_exp = np.interp(experimental_data.time, t_sim, M_sim)
 
-    l2_tissue = np.linalg.norm(L_sim_on_exp - exp_ts.tissue_size) ** 2
-    l2_meso = np.linalg.norm(M_sim_on_exp - exp_ts.mesoderm_signal) ** 2
+    l2_tissue = np.linalg.norm(L_sim_on_exp - experimental_data.tissue_size) ** 2
+    l2_meso = np.linalg.norm(M_sim_on_exp - experimental_data.mesoderm_signal) ** 2
 
     return float(l2_tissue + l2_meso)
 
@@ -82,16 +82,3 @@ def _check_simulation_results(
         return False
 
     return True
-
-
-def load_experimental_data() -> ExperimentalTrajectories:
-    """Load experimental trajectories from files.
-
-    Args:
-
-    Returns:
-        ExperimentalTrajectories object with loaded data
-    """
-    raise NotImplementedError(
-        "This function will be implemented after we extract raw data for optimization."
-    )

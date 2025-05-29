@@ -53,6 +53,8 @@ class SimulationLogger:
         self.velocity = np.zeros((self.max_snapshots, mesh_size))
         self.stress = np.zeros((self.max_snapshots, mesh_size))
 
+        self.area_norm = np.zeros(self.max_snapshots)
+        self.meso_mean = np.zeros(self.max_snapshots)
         self.times = np.zeros(self.max_snapshots)
         self.boundary_positions = np.zeros(self.max_snapshots)
         self.boundary_velocity = np.zeros(self.max_snapshots)
@@ -77,6 +79,7 @@ class SimulationLogger:
         edge_idx,
         meso_frac,
         max_m,
+        area_star,
         x_coords=None,
     ):
         """Log a snapshot of simulation data."""
@@ -85,6 +88,9 @@ class SimulationLogger:
 
         if self.x_coordinates is None and x_coords is not None:
             self.x_coordinates = x_coords.copy()
+
+        self.area_norm[self._snapshot_count] = float(area_star)
+        self.meso_mean[self._snapshot_count] = float(m_vals.mean())
 
         self.density[self._snapshot_count] = rho_vals
         self.mesoderm[self._snapshot_count] = m_vals
@@ -116,7 +122,9 @@ class SimulationLogger:
         """Convert all logs to a dictionary for saving or analysis."""
         return {
             "time": self.times,
-            "tissue_size": self.boundary_positions,
+            "tissue_size": self.area_norm,
+            "mesoderm_signal": self.meso_mean,
+            "tissue_boundary": self.boundary_positions,
             "mesoderm_signal": self.mesoderm_fraction,
             "density": self.density,
             "mesoderm": self.mesoderm,
@@ -128,7 +136,6 @@ class SimulationLogger:
             "mesoderm_fraction": self.mesoderm_fraction,
             "max_mesoderm": self._normalize_mesoderm_data(self.max_mesoderm),
             "x_coords": self.x_coordinates,
-            "time": self.times,
         }
 
     def _normalize_mesoderm_data(self, mesoderm_data: np.ndarray) -> np.ndarray:
@@ -139,7 +146,7 @@ class SimulationLogger:
         m_min = np.min(mesoderm_data)
         m_max = np.max(mesoderm_data)
 
-        # Handle the case where all values are the same
+        # Avoid division by zero if all values are the same
         if m_max == m_min:
             return np.zeros_like(mesoderm_data)
 

@@ -5,6 +5,9 @@ import logging
 from pathlib import Path
 import sys
 
+import numpy as np
+
+from pescoid_modelling.objective import ExperimentalTrajectories
 from pescoid_modelling.optimizer import CMAOptimizer
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import load_config
@@ -18,6 +21,22 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 LOGGER = logging.getLogger("pescoid.cli")
+
+
+def _load_trajectories(path: Path) -> ExperimentalTrajectories:
+    """Load data from a .npz file and return ExperimentalTrajectories object."""
+    data = np.load(path)
+    try:
+        return ExperimentalTrajectories(
+            time=data["time"],
+            tissue_size=data["tissue_size"],
+            mesoderm_signal=data["mesoderm_signal"],
+        )
+    except KeyError as e:
+        raise ValueError(
+            f"Missing required keys in {path}. Expected keys: "
+            "'time', 'tissue_size', 'mesoderm_signal'."
+        ) from e
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -87,6 +106,7 @@ def _cmd_optimize(args: argparse.Namespace) -> None:
     """Entry point for running optimization."""
     # Load configuration
     sim_params, cma_cfg = load_config(args.config)
+    experimental_data = _load_trajectories(Path(args.experimental_npz))
 
     # Set up output directory
     work_dir = _prepare_output_dir(
@@ -103,6 +123,7 @@ def _cmd_optimize(args: argparse.Namespace) -> None:
         bounds=cma_cfg.bounds,
         max_evals=cma_cfg.max_evals,
         popsize=cma_cfg.popsize,
+        experimental_data=experimental_data,
     )
     LOGGER.info("Running CMA-ES optimisation.")
     best_params = optimizer.optimize()
@@ -138,10 +159,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_common_args(opt_parser)
     opt_parser.add_argument(
-        "--experimental_csv",
+        "--experimental_npz",
         type=str,
-        default=None,
-        help="path/to/experimental_data.csv (experimental data with columns: ",
+        default="data/experimental_timeseries.npz",
+        help="Experimental trajectories saved as np.savez(...). "
+        "Should include arrays for time scale, normalized area, and mesoderm signal.",
     )
     opt_parser.set_defaults(func=_cmd_optimize)
 
