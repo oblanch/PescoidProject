@@ -43,7 +43,8 @@ Run CMA-ES optimization with:
 # full optimization
 pescoid optimize \
   --config path/to/your/config.yaml \
-  --output_dir opt_out/
+  --output_dir opt_out/ \
+  --experimental_npz path/to/experimental_timeseries.npz
 ```
 
 ## Citation
