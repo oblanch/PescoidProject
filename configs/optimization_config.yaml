@@ -38,25 +38,25 @@ cma:
   
   bounds:
     lower:
-      diffusivity: 10e-4
+      diffusivity: 1e-5
       tau_m: 0.1
       flow: 0.0
       activity: 0.0
       beta: 0.0
-      gamma: 10e-3
+      gamma: 1e-4
       sigma_c: 0.0
       r: 0.0
-      rho_sensitivity: 10e-3
-      m_sensitivity: 10e-3
+      rho_sensitivity: 1e-3
+      m_sensitivity: 1e-3
     
     upper:
-      diffusivity: 10e-2
+      diffusivity: 1e-2
       tau_m: 8.0
-      flow: 5.0
+      flow: 10.0
       activity: 5.0
       beta: 5.0
       gamma: 1
-      sigma_c: 1.0
+      sigma_c: 0.0
       r: 20.0
-      rho_sensitivity: 10e-1
-      m_sensitivity: 10e-1
+      rho_sensitivity: 1e-1
+      m_sensitivity: 1e-1
