@@ -231,27 +231,27 @@ class PescoidSimulator:
         """Build the variational forms for the PDEs."""
         rho_prev, m_prev, u_prev = split(self._previous_state)  # type: ignore
         rho, m, u = TrialFunctions(self._mixed_function_space)  # type: ignore
-        t_rho, t_m, t_u = TestFunctions(self._mixed_function_space)  # type: ignore
+        test_rho, test_m, test_u = TestFunctions(self._mixed_function_space)  # type: ignore
 
         # Formulate residuals
         F_rho = self._formulate_density_equation(
             rho=rho,  # type: ignore
             rho_prev=rho_prev,  # type: ignore
             u_prev=u_prev,
-            t_rho=t_rho,  # type: ignore
+            test_rho=test_rho,  # type: ignore
         )
         F_m = self._formulate_mesoderm_equation(
             m=m,
             m_prev=m_prev,
             rho_prev=rho_prev,  # type: ignore
             u_prev=u_prev,
-            t_m=t_m,
+            test_m=test_m,
         )
         F_u = self._formulate_velocity_equation(
             u=u,
             rho_prev=rho_prev,  # type: ignore
             m_prev=m_prev,
-            t_u=t_u,
+            test_u=test_u,
         )
 
         total_form = F_rho + F_m + F_u
@@ -262,7 +262,7 @@ class PescoidSimulator:
         rho: Function,
         rho_prev: Function,
         u_prev: Function,
-        t_rho: Function,
+        test_rho: Function,
     ) -> Form:
         """Formulate the variational form for the density equation (tissue
         growth). Equation is of the following form:
@@ -270,15 +270,15 @@ class PescoidSimulator:
             d rho / dt = Delta * d^2 rho / dx^2 - Flow * u_prev * d rho_prev /
             dx + rho_prev * (1 - rho_prev)
         """
-        temporal = (rho - rho_prev) * t_rho * dx  # type: ignore
+        temporal = (rho - rho_prev) * test_rho * dx  # type: ignore
         diffusion = (
-            self._dt_const * self._diffusivity_const * rho.dx(0) * t_rho.dx(0) * dx  # type: ignore
+            self._dt_const * self._diffusivity_const * rho.dx(0) * test_rho.dx(0) * dx  # type: ignore
         )
         advection = (
-            -self._dt_const * self._flow_const * u_prev * rho_prev * t_rho.dx(0) * dx  # type: ignore
+            -self._dt_const * self._flow_const * u_prev * rho_prev * test_rho.dx(0) * dx  # type: ignore
         )
         reaction = (
-            -self._dt_const * rho_prev * (self._one_const - rho_prev) * t_rho * dx  # type: ignore
+            -self._dt_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
         )
 
         # Complete form
@@ -290,7 +290,7 @@ class PescoidSimulator:
         m_prev: Function,
         rho_prev: Function,
         u_prev: Function,
-        t_m: Function,
+        test_m: Function,
     ) -> Form:
         """Formulate the variational form for mesoderm differentiation. The
         complete equation is:
@@ -303,24 +303,24 @@ class PescoidSimulator:
         feedback_mode = getattr(self.params, "feedback_mode", "strain_rate")
 
         # Build term by term
-        temporal = (m - m_prev) * t_m * dx  # type: ignore
+        temporal = (m - m_prev) * test_m * dx  # type: ignore
         common_decay = (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
             * m_prev
             * (m_prev + self._one_const)  # type: ignore
             * (self._one_const - m_prev)  # type: ignore
-            * t_m
+            * test_m
             * dx
         )
 
         if feedback_mode == "strain_rate":
-            feedback = self._formulate_strain_rate_feedback(u_prev, t_m)
+            feedback = self._formulate_strain_rate_feedback(u_prev, test_m)
         else:  # active_stress
-            feedback = self._formulate_active_stress_feedback(rho_prev, m_prev, t_m)
+            feedback = self._formulate_active_stress_feedback(rho_prev, m_prev, test_m)
 
-        diffusion = self._dt_const * self._diffusivity_const * m.dx(0) * t_m.dx(0) * dx  # type: ignore
-        advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * t_m * dx  # type: ignore
+        diffusion = self._dt_const * self._diffusivity_const * m.dx(0) * test_m.dx(0) * dx  # type: ignore
+        advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * test_m * dx  # type: ignore
 
         # Complete residual
         return temporal - common_decay - feedback + diffusion + advection
@@ -329,7 +329,7 @@ class PescoidSimulator:
         self,
         rho_prev: Function,
         m_prev: Function,
-        t_m: Function,
+        test_m: Function,
     ) -> Form:
         """Formulate the active-stress feedback term for mesoderm differentiation:
 
@@ -373,14 +373,14 @@ class PescoidSimulator:
             * (self._one_const / self._tau_m_const)  # type: ignore
             * self._r_const
             * (cue - self._sigma_c_const)
-            * t_m
+            * test_m
             * dx
         )
 
     def _formulate_strain_rate_feedback(
         self,
         u_prev: Function,
-        t_m: Function,
+        test_m: Function,
     ) -> Form:
         """Formulate the active stress feedback term for mesoderm
         differentiation:
@@ -400,7 +400,7 @@ class PescoidSimulator:
             * (self._one_const / self._tau_m_const)  # type: ignore
             * self._r_const
             * (cue - self._sigma_c_const)  # type: ignore
-            * t_m
+            * test_m
             * dx
         )
 
@@ -409,7 +409,7 @@ class PescoidSimulator:
         u: Function,
         rho_prev: Function,
         m_prev: Function,
-        t_u: Function,
+        test_u: Function,
     ) -> Form:
         """Formulate the variational form for tissue velocity (force balance
         equation):
@@ -425,9 +425,9 @@ class PescoidSimulator:
         active_stress_div = self._calculate_stress_divergence(rho_prev, m_prev)
 
         # Build equation terms
-        friction = rho_gate * self._gamma_const * u * t_u * dx
-        viscosity = rho_gate * u.dx(0) * t_u.dx(0) * dx  # type: ignore
-        force = active_stress_div * t_u * dx  # type: ignore
+        friction = rho_gate * self._gamma_const * u * test_u * dx
+        viscosity = rho_gate * u.dx(0) * test_u.dx(0) * dx  # type: ignore
+        force = active_stress_div * test_u * dx  # type: ignore
 
         # complete form
         return friction + viscosity - force
