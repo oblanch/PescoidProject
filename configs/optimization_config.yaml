@@ -4,29 +4,30 @@ simulation:
   total_hours: 12.0  # simulated biological time [h]
   domain_length: 10.0  # physical domain length (x ∈ [−L/2, L/2]) in nondim units
   dx_interval: 0.001 # IntervalMesh spacing
-  diffusivity: 0.003701620163282279 # δ nondim diffusivity
-  tau_m: 4.2530472477791355  # mesoderm growth timescale
-  flow: 2.248764428735223  # F, nondim advection or flow
-  activity: 0.5351115705694426  # nondim activity parameter A
-  beta: 4.461349911292048 # β contribution of mesoderm fate to cell's contractility
-  gamma: 0.9169593787789116  # Γ non friction coefficient
+  diffusivity: 0.0034169448408568294 # δ nondim diffusivity
+  m_diffusivity: 1e-3  # artificial diffusivity on mesoderm for numerical stability
+  tau_m: 0.7298724891360164  # mesoderm growth timescale
+  flow: 0.0744598987622791  # F, nondim advection or flow
+  activity: 0.033910497398703665  # nondim activity parameter A
+  beta: 0.5985162656223159 # β contribution of mesoderm fate to cell's contractility
+  gamma: 0.4991295376353086  # Γ non friction coefficient
   sigma_c: 0.0  # σ_c (critical amount of mechanical feedback)
-  r: 12.980680586603286  # r sensitivity of cells to mechanical feedback
+  r: 7.341369910917082  # r sensitivity of cells to mechanical feedback
   rho_sensitivity: 0.0  # saturation of active stress at high density
-  m_sensitivity: 0.039325380303312424  # sensitivity of the step function that increases contractility of cells expressing mesoderm
+  m_sensitivity: 0.05747966379301106  # sensitivity of the step function that increases contractility of cells expressing mesoderm
   feedback_mode: strain_rate  # strain_rate or active_stress
 
 # Optimization configuration
 cma:
   x0:  # init
-    diffusivity: 0.003701620163282279
-    tau_m: 4.2530472477791355
-    flow: 2.248764428735223
-    activity: 0.5351115705694426
-    beta: 4.461349911292048
-    gamma: 0.9169593787789116
-    r: 12.980680586603286
-    m_sensitivity: 0.039325380303312424
+    diffusivity: 0.0034169448408568294
+    tau_m: 0.7298724891360164
+    flow: 0.0744598987622791
+    activity: 0.033910497398703665
+    beta: 0.5985162656223159
+    gamma: 0.4991295376353086
+    r: 7.341369910917082
+    m_sensitivity: 0.05747966379301106
   
   sigma0: 0.20
   max_evals: 8000
