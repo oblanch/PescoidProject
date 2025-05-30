@@ -27,14 +27,14 @@ pip install -e .
 ```
 
 ## Runtime requirements
-Each simulation depends on a set of parameters specified in `config.yaml`. Users can specify parameters for individual simulation runs, or upper and lower bounds for optimization. Simulation results get saved according to the yaml prefix, so specifying different configs allows an efficient and reproducible method for repeat runs.
+Each simulation depends on a set of parameters specified in `optimization_config.yaml`. Users can specify parameters for individual simulation runs, or upper and lower bounds for optimization. Simulation results get saved according to the yaml prefix, so specifying different configs allows an efficient and reproducible method for repeat runs.
 
 ## Examples
 Run simulations with:
 ```sh
 # single simulation
 pescoid simulate \
-  --config path/to/your/config.yaml \
+  --config path/to/your/optimization_config.yaml \
   --output_dir sim_out/
 ```
 
