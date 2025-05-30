@@ -30,9 +30,9 @@ cma:
     m_sensitivity: 0.05747966379301106
   
   sigma0: 0.20
-  max_evals: 8000
+  max_evals: 3000
   popsize: 32
-  n_restarts: 8
+  n_restarts: 4
   
   bounds:
     lower:
