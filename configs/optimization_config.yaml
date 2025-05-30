@@ -5,6 +5,7 @@ simulation:
   domain_length: 10.0  # physical domain length (x ∈ [−L/2, L/2]) in nondim units
   dx_interval: 0.001 # IntervalMesh spacing
   diffusivity: 1e-3 # δ nondim diffusivity
+  m_diffusivity: 1e-3 # artificial diffusivity on mesoderm for numerical stability
   tau_m: 6e0  # mesoderm growth timescale
   length_scale: 1.0  # No need for this anymore since the dimensionless length scale is always 1.0 (can be hard-coded into the intitial conditions acceptibly) 
   flow: 3e-1  # F, nondim advection or flow
