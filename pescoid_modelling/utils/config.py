@@ -20,6 +20,7 @@ class SimulationParams:
     domain_length: float
     dx_interval: float
     diffusivity: float
+    m_diffusivity:float
     tau_m: float
     length_scale: float
     flow: float
