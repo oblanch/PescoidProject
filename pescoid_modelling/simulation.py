@@ -391,7 +391,7 @@ class PescoidSimulator:
         """
         rho_gate = self._half_const * (
             tanh((rho_prev - self._rho_gate_center_const) / self._rho_gate_width_const)  # type: ignore
-            + self._one_const
+            + self._one_const)
         
         cue = -rho_gate * u_prev.dx(0)  # type: ignore
 
