@@ -8,7 +8,16 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml  # type: ignore
 
-from pescoid_modelling.utils.constants import _ORDER
+_ORDER = [
+    "diffusivity",
+    "flow",
+    "tau_m",
+    "gamma",
+    "activity",
+    "beta",
+    "r",
+    "m_sensitivity",
+]
 
 
 @dataclass(frozen=True)
@@ -22,7 +31,6 @@ class SimulationParams:
     diffusivity: float
     m_diffusivity:float
     tau_m: float
-    length_scale: float
     flow: float
     activity: float
     beta: float

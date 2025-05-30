@@ -30,10 +30,13 @@ from ufl import tanh  # type: ignore
 
 from pescoid_modelling.utils.config import SimulationParams
 from pescoid_modelling.utils.constants import ETA
+from pescoid_modelling.utils.constants import INITIAL_AMPLITUDE
 from pescoid_modelling.utils.constants import LEADING_EDGE_THRESHOLD
+from pescoid_modelling.utils.constants import LENGTH_SCALE
 from pescoid_modelling.utils.constants import RHO_GATE_CENTER
 from pescoid_modelling.utils.constants import RHO_GATE_WIDTH
 from pescoid_modelling.utils.constants import SNAPSHOT_EVERY_N_STEPS
+from pescoid_modelling.utils.constants import TRANSITION_WIDTH
 from pescoid_modelling.utils.simulation_logger import SimulationLogger
 
 
@@ -195,13 +198,9 @@ class PescoidSimulator:
                 "Function spaces must be set up before setting initial conditions."
             )
 
-        initial_amplitude = 1.0
-        transition_width = 1e-2
-        length_scale = self.params.length_scale
-
         # Define initial condition expressions
         density_expression = (
-            f"({initial_amplitude}/2) * ((-tanh((pow(x[0], 2) - {length_scale})/{transition_width})) + 1)"
+            f"({INITIAL_AMPLITUDE}/2) * ((-tanh((pow(x[0], 2) - {LENGTH_SCALE})/{TRANSITION_WIDTH})) + 1)"
             "* pow(0.5, x[0]*x[0])"
         )
         density_initial_condition = Expression(density_expression, degree=2)
@@ -393,8 +392,9 @@ class PescoidSimulator:
         """
         rho_gate = self._half_const * (
             tanh((rho_prev - self._rho_gate_center_const) / self._rho_gate_width_const)  # type: ignore
-            + self._one_const)
-        
+            + self._one_const
+        )
+
         cue = -rho_gate * u_prev.dx(0)  # type: ignore
 
         return (
@@ -448,9 +448,8 @@ class PescoidSimulator:
                 * ((tanh((mesoderm_prev - self._m_sensitivity_const)/self._m_sensitivity_const) + 1)/2)
             ) - 1)]
         """
-        active_stress = (
-            rho_prev
-            * (self._activity_const  # type: ignore
+        active_stress = rho_prev * (
+            self._activity_const  # type: ignore
             * (
                 rho_prev
                 / (self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev)  # type: ignore

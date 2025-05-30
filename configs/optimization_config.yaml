@@ -4,37 +4,33 @@ simulation:
   total_hours: 12.0  # simulated biological time [h]
   domain_length: 10.0  # physical domain length (x ∈ [−L/2, L/2]) in nondim units
   dx_interval: 0.001 # IntervalMesh spacing
-  diffusivity: 1e-3 # δ nondim diffusivity
-  m_diffusivity: 1e-3 # artificial diffusivity on mesoderm for numerical stability
-  tau_m: 6e0  # mesoderm growth timescale
-  length_scale: 1.0  # No need for this anymore since the dimensionless length scale is always 1.0 (can be hard-coded into the intitial conditions acceptibly) 
-  flow: 3e-1  # F, nondim advection or flow
-  activity: 1.15e0  # nondim activity parameter A
-  beta: 0.45  # β contribution of mesoderm fate to cell's contractility
-  gamma: 1e-2  # Γ non friction coefficient
+  diffusivity: 0.003701620163282279 # δ nondim diffusivity
+  tau_m: 4.2530472477791355  # mesoderm growth timescale
+  flow: 2.248764428735223  # F, nondim advection or flow
+  activity: 0.5351115705694426  # nondim activity parameter A
+  beta: 4.461349911292048 # β contribution of mesoderm fate to cell's contractility
+  gamma: 0.9169593787789116  # Γ non friction coefficient
   sigma_c: 0.0  # σ_c (critical amount of mechanical feedback)
-  r: 1e0  # r sensitivity of cells to mechanical feedback
+  r: 12.980680586603286  # r sensitivity of cells to mechanical feedback
   rho_sensitivity: 0.0  # saturation of active stress at high density
-  m_sensitivity: 0.01  # sensitivity of the step function that increases contractility of cells expressing mesoderm
+  m_sensitivity: 0.039325380303312424  # sensitivity of the step function that increases contractility of cells expressing mesoderm
   feedback_mode: strain_rate  # strain_rate or active_stress
 
 # Optimization configuration
 cma:
   x0:  # init
-    diffusivity: 0.07
-    tau_m: 0.8
-    flow: 1.5
-    activity: 3.8
-    beta: 1.8
-    gamma: 0.3
-    sigma_c: 0.5
-    r: 3
-    rho_sensitivity: 0.0
-    m_sensitivity: 0.4
+    diffusivity: 0.003701620163282279
+    tau_m: 4.2530472477791355
+    flow: 2.248764428735223
+    activity: 0.5351115705694426
+    beta: 4.461349911292048
+    gamma: 0.9169593787789116
+    r: 12.980680586603286
+    m_sensitivity: 0.039325380303312424
   
-  sigma0: 0.15
-  max_evals: 5000
-  popsize: 24
+  sigma0: 0.20
+  max_evals: 8000
+  popsize: 32
   n_restarts: 8
   
   bounds:
@@ -45,9 +41,7 @@ cma:
       activity: 0.0
       beta: 0.0
       gamma: 1e-4
-      sigma_c: 0.0
       r: 0.0
-      rho_sensitivity: 0
       m_sensitivity: 1e-3
     
     upper:
@@ -57,7 +51,5 @@ cma:
       activity: 5.0
       beta: 5.0
       gamma: 1
-      sigma_c: 0.0
       r: 20.0
-      rho_sensitivity: 0
       m_sensitivity: 1e-1

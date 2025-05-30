@@ -14,8 +14,8 @@ from tqdm import tqdm  # type: ignore
 from pescoid_modelling.objective import ExperimentalTrajectories
 from pescoid_modelling.objective import optimization_objective
 from pescoid_modelling.simulation import PescoidSimulator
+from pescoid_modelling.utils.config import _ORDER
 from pescoid_modelling.utils.config import SimulationParams
-from pescoid_modelling.utils.constants import _ORDER
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
 
