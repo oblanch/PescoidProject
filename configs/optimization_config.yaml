@@ -1,19 +1,19 @@
 # Model configuration
 simulation:
-  delta_t: 0.1  # time step (t_g units)
+  delta_t: 0.01  # time step (t_g units) & must be < the tau_m lower bound (the fastest time-scale)
   total_hours: 12.0  # simulated biological time [h]
-  domain_length: 10.0  # physical domain size (x ∈ [−L/2, L/2])
-  dx_interval: 0.005 # IntervalMesh spacing
-  diffusivity: 1e-3 # δ diffusivity
+  domain_length: 10.0  # physical domain length (x ∈ [−L/2, L/2]) in nondim units
+  dx_interval: 0.001 # IntervalMesh spacing
+  diffusivity: 1e-3 # δ nondim diffusivity
   tau_m: 6e0  # mesoderm growth timescale
-  length_scale: 1.0  # L_0
-  flow: 3e-1  # F, advection or flow
-  activity: 1.15e0  # A
+  length_scale: 1.0  # No need for this anymore since the dimensionless length scale is always 1.0 (can be hard-coded into the intitial conditions acceptibly) 
+  flow: 3e-1  # F, nondim advection or flow
+  activity: 1.15e0  # nondim activity parameter A
   beta: 0.45  # β contribution of mesoderm fate to cell's contractility
-  gamma: 1e-2  # Γ friction coefficient
-  sigma_c: 0.0  # σ_c (critical stress)
+  gamma: 1e-2  # Γ non friction coefficient
+  sigma_c: 0.0  # σ_c (critical amount of mechanical feedback)
   r: 1e0  # r sensitivity of cells to mechanical feedback
-  rho_sensitivity: 0.01  # sensitivity to ensure stress vanishes on the boundary of the tissue
+  rho_sensitivity: 0.01  # sensitivity to ensure stress vanishes on the boundary of the tissue and mesoderm only patterns inside the tissue
   m_sensitivity: 0.01  # sensitivity of the step function that increases contractility of cells expressing mesoderm
   feedback_mode: strain_rate  # strain_rate or active_stress
 
