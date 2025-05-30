@@ -111,7 +111,7 @@ class PescoidSimulator:
         # Simulation parameters
         self._dt_const = Constant(self.time_step)
         self._diffusivity_const = Constant(self.params.diffusivity)
-        swlf._m_diffusivity_const = Constant(self.params.m_diffusivity)
+        self._m_diffusivity_const = Constant(self.params.m_diffusivity)
         self._flow_const = Constant(self.params.flow)
         self._tau_m_const = Constant(self.params.tau_m)
         self._activity_const = Constant(self.params.activity)
