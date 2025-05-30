@@ -439,17 +439,17 @@ class PescoidSimulator:
         """Calculate the divergence of the active stress tensor:
 
         d/dx [density_prev
-            * Activity
+            * (Activity
             * (density_prev/(1 + self._rho_sensitivity_const * density_prev^2))
             * (
                 1
                 + Beta
                 * ((tanh((mesoderm_prev - self._m_sensitivity_const)/self._m_sensitivity_const) + 1)/2)
-            ) - 1]
+            ) - 1)]
         """
         active_stress = (
             rho_prev
-            * self._activity_const  # type: ignore
+            * (self._activity_const  # type: ignore
             * (
                 rho_prev
                 / (self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev)  # type: ignore
@@ -469,6 +469,7 @@ class PescoidSimulator:
                 )
             )
             - self._one_const
+              )
         )
 
         # divergence
