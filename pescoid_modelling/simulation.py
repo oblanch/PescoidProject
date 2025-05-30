@@ -469,7 +469,6 @@ class PescoidSimulator:
                 )
             )
             - self._one_const
-              )
         )
 
         # divergence
