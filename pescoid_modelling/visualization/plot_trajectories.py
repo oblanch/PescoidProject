@@ -28,6 +28,57 @@ def load_trajectory_data(
     return trajectory_data
 
 
+def interpolate_simulation_to_experimental_timepoints(
+    sim_time_minutes: np.ndarray,
+    sim_values: np.ndarray,
+    exp_time_minutes: np.ndarray,
+) -> np.ndarray:
+    """Interpolate simulation data onto experimental time grid.
+
+    Returns:
+      Interpolated simulation values at experimental time points
+    """
+    valid_exp_mask = exp_time_minutes <= sim_time_minutes[-1]
+
+    if not np.any(valid_exp_mask):
+        raise ValueError("No experimental time points within simulation range")
+
+    exp_time_valid = exp_time_minutes[valid_exp_mask]
+    return np.interp(exp_time_valid, sim_time_minutes, sim_values)
+
+
+def calculate_trajectory_mismatch(
+    sim_interpolated: np.ndarray,
+    exp_values: np.ndarray,
+) -> float:
+    """Calculate L2 norm squared between interpolated simulation and
+    experimental values.
+    """
+    return float(np.linalg.norm(sim_interpolated - exp_values) ** 2)
+
+
+def calculate_l2_errors(
+    sim_data: Dict[str, np.ndarray], exp_data: Dict[str, np.ndarray]
+) -> Tuple[float, float]:
+    """Calculate L2² errors for tissue size and mesoderm signal."""
+    # Interpolate simulation data onto experimental time grid
+    tissue_sim_interp = interpolate_simulation_to_experimental_timepoints(
+        sim_data["time"], sim_data["tissue_size"], exp_data["time"]
+    )
+    meso_sim_interp = interpolate_simulation_to_experimental_timepoints(
+        sim_data["time"], sim_data["mesoderm_signal"], exp_data["time"]
+    )
+
+    valid_exp_mask = exp_data["time"] <= sim_data["time"][-1]
+    exp_tissue_valid = exp_data["tissue_size"][valid_exp_mask]
+    exp_meso_valid = exp_data["mesoderm_signal"][valid_exp_mask]
+
+    tissue_l2_sq = calculate_trajectory_mismatch(tissue_sim_interp, exp_tissue_valid)
+    meso_l2_sq = calculate_trajectory_mismatch(meso_sim_interp, exp_meso_valid)
+
+    return tissue_l2_sq, meso_l2_sq
+
+
 def truncate_to_common_timespan(
     sim_data: Dict[str, np.ndarray], exp_data: Dict[str, np.ndarray]
 ) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
@@ -120,6 +171,7 @@ def plot_simulation_timeseries(
     ax2.tick_params(axis="y", labelcolor="tab:red")
     ax2.spines["right"].set_color("tab:red")
 
+    # Add legend
     custom_lines = [
         Line2D(
             [0], [0], color="black", linestyle="-", linewidth=0.75, label="Simulation"
@@ -133,20 +185,34 @@ def plot_simulation_timeseries(
             label="Experimental",
         ),
     ]
-    ax1.legend(
+    legend = ax1.legend(
         handles=custom_lines,
         loc="upper left",
         frameon=False,
-        bbox_to_anchor=(0, 1.3),
+        bbox_to_anchor=(-0.275, 1.3),
     )
+
+    # Add L2² error text if experimental data is available
+    if experimental_data is not None:
+        tissue_l2_sq, meso_l2_sq = calculate_l2_errors(data, experimental_data)
+        error_text = (
+            f"L²(tissue) = {tissue_l2_sq:.2f}\n" f"L²(mesoderm) = {meso_l2_sq:.2f}\n"
+        )
+        ax1.text(
+            0.5,
+            1.215,
+            error_text,
+            transform=ax1.transAxes,
+            verticalalignment="top",
+            horizontalalignment="left",
+            linespacing=1.5,
+        )
 
     ax1.set_xmargin(0)
     ax1.spines["top"].set_visible(False)
     ax2.spines["top"].set_visible(False)
 
     plt.tight_layout()
-
-    # Save the plot
     suffix = "_with_exp" if experimental_data is not None else ""
     output_path = os.path.join(output_dir, f"{save_prefix}_timeseries{suffix}.svg")
     plt.savefig(output_path, bbox_inches="tight")
