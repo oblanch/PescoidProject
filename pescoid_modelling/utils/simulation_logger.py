@@ -108,6 +108,8 @@ class SimulationLogger:
     def finalize(self) -> None:
         """Trim unused space in pre-allocated arrays."""
         if self._snapshot_count < self.max_snapshots:
+            self.area_norm = self.area_norm[: self._snapshot_count]
+            self.meso_mean = self.meso_mean[: self._snapshot_count]
             self.density = self.density[: self._snapshot_count]
             self.mesoderm = self.mesoderm[: self._snapshot_count]
             self.velocity = self.velocity[: self._snapshot_count]
@@ -125,12 +127,10 @@ class SimulationLogger:
             "tissue_size": self.area_norm,
             "mesoderm_signal": self.meso_mean,
             "tissue_boundary": self.boundary_positions,
-            "mesoderm_signal": self.mesoderm_fraction,
             "density": self.density,
             "mesoderm": self.mesoderm,
             "velocity": self.velocity,
             "stress": self.stress,
-            "boundary_positions": self.boundary_positions,
             "boundary_times": self.times,
             "boundary_velocity": self.boundary_velocity,
             "mesoderm_fraction": self.mesoderm_fraction,

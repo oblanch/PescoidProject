@@ -110,9 +110,13 @@ class CMAOptimizer:
         try:
             simulator.run()
             results = simulator.results
+
+            if results.get("aborted", [False])[0]:
+                raise RuntimeError("Simulation aborted")
+
         except Exception as exc:
             print(f"Simulation failure ({exc}), penalizing...")
-            return 1e9
+            return 1e9 * (1.0 + 0.01 * np.random.rand())
 
         return self.objective_function(results, self.experimental_data)
 
@@ -129,28 +133,39 @@ class CMAOptimizer:
                 "iteration,evaluations,best_fitness,mean_fitness,sigma,axis_ratio\n"
             )
 
+        restarts_left = int(self.es.opts.get("restarts", 0))
         iteration = 0
-        with mp.Pool(processes=self.n_workers) as pool:
-            while not self.es.stop():
-                iteration += 1
-                X = self.es.ask()
-                fitness: List[float] = list(
-                    tqdm(
-                        pool.imap(self._evaluate_individual, X),
-                        total=len(X),
-                        desc=f"Iteration {iteration}: Evaluating population",
-                    )
-                )
-                self.es.tell(X, fitness)
-                self.es.disp()
 
-                logger.add(self.es)
-                with open(log_file, "a") as f:
-                    f.write(
-                        f"{iteration},{self.es.countevals},{self.es.result.fbest},"
-                        f"{np.mean(fitness)},{self.es.sigma},"
-                        f"{self.es.D.max()/self.es.D.min()}\n"  # type: ignore
+        with mp.Pool(processes=self.n_workers) as pool:
+            while True:
+                logger = cma.CMADataLogger(
+                    str(self.work_dir / f"cma_restart_{restarts_left}")
+                )
+
+                while not self.es.stop():
+                    iteration += 1
+                    X = self.es.ask()
+                    fitness = list(
+                        tqdm(
+                            pool.imap(self._evaluate_individual, X),
+                            total=len(X),
+                            desc=f"Gen {iteration} (rst {restarts_left})",
+                        )
                     )
+                    self.es.tell(X, fitness)
+                    self.es.disp()
+                    logger.add(self.es)
+                    with open(log_file, "a") as f:
+                        f.write(
+                            f"{iteration},{self.es.countevals},"
+                            f"{self.es.result.fbest},{np.mean(fitness)},"
+                            f"{self.es.sigma},{self.es.D.max()/self.es.D.min()}\n"  # type: ignore
+                        )
+
+                if restarts_left == 0:
+                    break
+                restarts_left -= 1
+                self.es = self.es.restart()  # type: ignore
 
         self._generate_optimization_plots(logger)
         best_x = self.es.result.xbest

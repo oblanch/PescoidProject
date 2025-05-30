@@ -7,7 +7,7 @@ RHO_GATE_WIDTH = 0.01
 ETA = 1.0
 
 _ORDER = [
-    "length_scale",
+    # "length_scale",
     "diffusivity",
     "flow",
     "tau_m",

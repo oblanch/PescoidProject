@@ -47,7 +47,8 @@ def optimization_objective(
     L_sim = results.get("tissue_size", np.array([]))
     M_sim = results.get("mesoderm_signal", np.array([]))
 
-    _check_simulation_results(t_sim, L_sim, M_sim)
+    if not _check_simulation_results(t_sim, L_sim, M_sim):
+        return 1e9
 
     # Interpolate simulation data onto experimental time grid
     L_sim_on_exp = np.interp(experimental_data.time, t_sim, L_sim)

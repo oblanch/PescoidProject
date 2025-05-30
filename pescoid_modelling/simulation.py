@@ -472,11 +472,11 @@ class PescoidSimulator:
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""
         lhs_form, rhs_form = self._forms
-        k = Function(self._mixed_function_space)
-        solve(lhs_form == rhs_form, k)
+        solution = Function(self._mixed_function_space)
+        solve(lhs_form == rhs_form, solution)
 
         # Extract components
-        rho_new, m_new, u_new = k.split(deepcopy=True)
+        rho_new, m_new, _ = solution.split(deepcopy=True)
         if self._check_for_errant_values(rho_new) or self._check_for_errant_values(
             m_new
         ):
@@ -484,9 +484,9 @@ class PescoidSimulator:
 
         # Correct density
         rho_new = self._ensure_non_negative(rho_new)
-        assign(k.sub(0), rho_new)
+        assign(solution.sub(0), rho_new)
 
-        self._previous_state.assign(k)
+        self._previous_state.assign(solution)
         self._current_state.assign(self._previous_state)
 
         self._log_simulation_state(step_idx)

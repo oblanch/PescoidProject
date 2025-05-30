@@ -32,16 +32,15 @@ cma:
     rho_sensitivity: 10e-2
     m_sensitivity: 10e-2
   
-  sigma0: 0.20
+  sigma0: 0.10
   max_evals: 5000
-  popsize: 16
+  popsize: 24
   n_restarts: 8
   
   bounds:
     lower:
       diffusivity: 10e-4
       tau_m: 0.1
-      length_scale: 1.0
       flow: 0.0
       activity: 0.0
       beta: 0.0
@@ -54,7 +53,6 @@ cma:
     upper:
       diffusivity: 10e-2
       tau_m: 8.0
-      length_scale: 1.0
       flow: 5.0
       activity: 5.0
       beta: 5.0
