@@ -20,19 +20,18 @@ simulation:
 # Optimization configuration
 cma:
   x0:  # init
-    diffusivity: 10e-3
-    tau_m: 4.05
-    length_scale: 1.0
-    flow: 2.5
-    activity: 2.5
-    beta: 2.5
-    gamma: 0.5005
-    sigma_c: 0.0
-    r: 10.0
-    rho_sensitivity: 10e-2
-    m_sensitivity: 10e-2
+    diffusivity: 0.07
+    tau_m: 0.8
+    flow: 1.5
+    activity: 3.8
+    beta: 1.8
+    gamma: 0.3
+    sigma_c: 0.5
+    r: 3
+    rho_sensitivity: 0.8
+    m_sensitivity: 0.4
   
-  sigma0: 0.10
+  sigma0: 0.15
   max_evals: 5000
   popsize: 24
   n_restarts: 8

@@ -12,7 +12,7 @@ This package utilizes legacy FENICS. To install an appropriate environment:
 ```sh
 # Create environment with legacy FEniCS
 conda create -n pescoid python=3.11 -y
-conda install -n pescoid -c conda-forge fenics -y`
+conda install -n pescoid -c conda-forge fenics -y
 
 # Install required packages
 conda activate pescoid
