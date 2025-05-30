@@ -126,7 +126,7 @@ class SimulationLogger:
             "time": self.times,
             "tissue_size": self.area_norm,
             "mesoderm_signal": self.meso_mean,
-            "tissue_boundary": self.boundary_positions,
+            "boundary_positions": self.boundary_positions,
             "density": self.density,
             "mesoderm": self.mesoderm,
             "velocity": self.velocity,
