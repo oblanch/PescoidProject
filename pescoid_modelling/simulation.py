@@ -315,7 +315,7 @@ class PescoidSimulator:
         )
 
         if feedback_mode == "strain_rate":
-            feedback = self._formulate_strain_rate_feedback(u_prev, test_m)
+            feedback = self._formulate_strain_rate_feedback(u_prev, rho_prev, test_m)
         else:  # active_stress
             feedback = self._formulate_active_stress_feedback(rho_prev, m_prev, test_m)
 
@@ -380,6 +380,7 @@ class PescoidSimulator:
     def _formulate_strain_rate_feedback(
         self,
         u_prev: Function,
+        rho_prev: Function,
         test_m: Function,
     ) -> Form:
         """Formulate the active stress feedback term for mesoderm
