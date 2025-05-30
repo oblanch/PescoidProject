@@ -111,6 +111,7 @@ class PescoidSimulator:
         # Simulation parameters
         self._dt_const = Constant(self.time_step)
         self._diffusivity_const = Constant(self.params.diffusivity)
+        swlf._m_diffusivity_const = Constant(self.params.m_diffusivity)
         self._flow_const = Constant(self.params.flow)
         self._tau_m_const = Constant(self.params.tau_m)
         self._activity_const = Constant(self.params.activity)
@@ -319,7 +320,7 @@ class PescoidSimulator:
         else:  # active_stress
             feedback = self._formulate_active_stress_feedback(rho_prev, m_prev, test_m)
 
-        diffusion = self._dt_const * self._diffusivity_const * m.dx(0) * test_m.dx(0) * dx  # type: ignore
+        diffusion = self._dt_const * self._m_diffusivity_const * m.dx(0) * test_m.dx(0) * dx  # type: ignore
         advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * test_m * dx  # type: ignore
 
         # Complete residual
