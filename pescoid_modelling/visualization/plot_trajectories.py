@@ -51,11 +51,7 @@ def interpolate_simulation_to_experimental_timepoints(
     sim_values: np.ndarray,
     exp_time_minutes: np.ndarray,
 ) -> np.ndarray:
-    """Interpolate simulation data onto experimental time grid.
-
-    Returns:
-      Interpolated simulation values at experimental time points
-    """
+    """Interpolate simulation data onto experimental time grid."""
     valid_exp_mask = exp_time_minutes <= sim_time_minutes[-1]
 
     if not np.any(valid_exp_mask):
