@@ -29,10 +29,11 @@ cma:
     r: 7.341369910917082
     m_sensitivity: 0.05747966379301106
   
-  sigma0: 0.20
-  max_evals: 3000
-  popsize: 32
-  n_restarts: 4
+  sigma0: 0.15
+  max_evals: 4000
+  popsize: 36
+  n_restarts: 2
+  tolstagnation: 10
   
   bounds:
     lower:

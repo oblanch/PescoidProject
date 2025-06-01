@@ -123,6 +123,7 @@ def _cmd_optimize(args: argparse.Namespace) -> None:
         bounds=cma_cfg.bounds,
         max_evals=cma_cfg.max_evals,
         popsize=cma_cfg.popsize,
+        n_restarts=cma_cfg.n_restarts,
         experimental_data=experimental_data,
     )
     LOGGER.info("Running CMA-ES optimisation.")

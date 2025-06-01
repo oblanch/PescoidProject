@@ -23,6 +23,24 @@ class ExperimentalTrajectories:
             raise ValueError("Time array must be monotonically increasing")
 
 
+def calculate_normalization_scales(
+    experimental_data: ExperimentalTrajectories,
+) -> tuple[float, float]:
+    """Calculate scales for standard deviation-based normalization.
+
+    Returns:
+      Tuple of (tissue_std, mesoderm_std)
+    """
+    tissue_std = float(np.std(experimental_data.tissue_size))
+    mesoderm_std = float(np.std(experimental_data.mesoderm_signal))
+
+    # Protect against zero std (constant signals)
+    tissue_std = tissue_std if tissue_std > 0 else 1.0
+    mesoderm_std = mesoderm_std if mesoderm_std > 0 else 1.0
+
+    return tissue_std, mesoderm_std
+
+
 def interpolate_simulation_to_experimental_timepoints(
     sim_time_generations: np.ndarray,
     sim_values: np.ndarray,
@@ -54,16 +72,21 @@ def interpolate_simulation_to_experimental_timepoints(
 def calculate_trajectory_mismatch(
     sim_interpolated: np.ndarray,
     exp_values: np.ndarray,
+    normalization_scale: float,
 ) -> float:
     """Calculate L2 norm between interpolated simulation and experimental
-    values.
+    values with normalization.
     """
-    return float(np.linalg.norm(sim_interpolated - exp_values) ** 2)
+    sim_normalized = sim_interpolated / normalization_scale
+    exp_normalized = exp_values / normalization_scale
+    return float(np.linalg.norm(sim_normalized - exp_normalized) ** 2)
 
 
 def optimization_objective(
     results: Dict[str, np.ndarray],
     experimental_data: ExperimentalTrajectories,
+    tissue_std: Optional[float] = None,
+    mesoderm_std: Optional[float] = None,
     minutes_per_generation: float = 30.0,
 ) -> float:
     """Fitness cost function based on L2 norm of the mismatch between simulated
@@ -92,6 +115,9 @@ def optimization_objective(
         return 1e9
 
     try:
+        if tissue_std is None or mesoderm_std is None:
+            tissue_std, mesoderm_std = calculate_normalization_scales(experimental_data)
+
         L_sim_on_exp = interpolate_simulation_to_experimental_timepoints(
             t_sim, L_sim, experimental_data.time, minutes_per_generation
         )
@@ -106,8 +132,16 @@ def optimization_objective(
         exp_meso_valid = experimental_data.mesoderm_signal[valid_exp_mask]
 
         # Loss
-        l2_tissue = calculate_trajectory_mismatch(L_sim_on_exp, exp_tissue_valid)
-        l2_meso = calculate_trajectory_mismatch(M_sim_on_exp, exp_meso_valid)
+        l2_tissue = calculate_trajectory_mismatch(
+            sim_interpolated=L_sim_on_exp,
+            exp_values=exp_tissue_valid,
+            normalization_scale=tissue_std,
+        )
+        l2_meso = calculate_trajectory_mismatch(
+            sim_interpolated=M_sim_on_exp,
+            exp_values=exp_meso_valid,
+            normalization_scale=mesoderm_std,
+        )
 
         return l2_tissue + l2_meso
 

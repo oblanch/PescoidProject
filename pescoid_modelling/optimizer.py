@@ -61,6 +61,7 @@ class CMAOptimizer:
         bounds: Union[Tuple[List[float], List[float]], None] = None,
         max_evals: int = 256,
         popsize: int = 8,
+        n_restarts: int = 3,
         objective_function: Callable[..., float] = optimization_objective,
     ) -> None:
         """Initialize the CMA-ES optimizer.
@@ -91,6 +92,7 @@ class CMAOptimizer:
             opts["bounds"] = [list(bounds[0]), list(bounds[1])]
 
         self.es = cma.CMAEvolutionStrategy(init_guess, sigma, opts)
+        self.es.opts["restarts"] = n_restarts
 
     def _evaluate_individual(self, x: List[float]) -> float:
         """Evaluate a single parameter vector by running a simulation.
@@ -165,7 +167,7 @@ class CMAOptimizer:
                 if restarts_left == 0:
                     break
                 restarts_left -= 1
-                self.es = self.es.restart()  # type: ignore
+                self.es = self.es.restart(popsize_factor=1)  # type: ignore
 
         self._generate_optimization_plots(logger)
         best_x = self.es.result.xbest
