@@ -8,7 +8,7 @@ simulation:
   m_diffusivity: 1e-3  # artificial diffusivity on mesoderm for numerical stability
   tau_m: 6e0  # mesoderm growth timescale
   flow: 3e-1  # F, nondim advection or flow
-  activity: 1.15e0 # nondim activity parameter A
+  activity: 1.05e0 # nondim activity parameter A
   beta: 0.45 # β contribution of mesoderm fate to cell's contractility
   gamma: 1e-2  # Γ non friction coefficient
   sigma_c: 0.0  # σ_c (critical amount of mechanical feedback)

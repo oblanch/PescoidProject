@@ -121,15 +121,15 @@ def optimization_objective(
         L_sim_on_exp = interpolate_simulation_to_experimental_timepoints(
             t_sim, L_sim, experimental_data.time, minutes_per_generation
         )
-        M_sim_on_exp = interpolate_simulation_to_experimental_timepoints(
-            t_sim, M_sim, experimental_data.time, minutes_per_generation
-        )
+        # M_sim_on_exp = interpolate_simulation_to_experimental_timepoints(
+        #     t_sim, M_sim, experimental_data.time, minutes_per_generation
+        # )
 
         # Get corresponding experimental values
         sim_time_minutes = t_sim * minutes_per_generation
         valid_exp_mask = experimental_data.time <= sim_time_minutes[-1]
         exp_tissue_valid = experimental_data.tissue_size[valid_exp_mask]
-        exp_meso_valid = experimental_data.mesoderm_signal[valid_exp_mask]
+        # exp_meso_valid = experimental_data.mesoderm_signal[valid_exp_mask]
 
         # Loss
         l2_tissue = calculate_trajectory_mismatch(
@@ -137,13 +137,14 @@ def optimization_objective(
             exp_values=exp_tissue_valid,
             normalization_scale=tissue_std,
         )
-        l2_meso = calculate_trajectory_mismatch(
-            sim_interpolated=M_sim_on_exp,
-            exp_values=exp_meso_valid,
-            normalization_scale=mesoderm_std,
-        )
+        # l2_meso = calculate_trajectory_mismatch(
+        #     sim_interpolated=M_sim_on_exp,
+        #     exp_values=exp_meso_valid,
+        #     normalization_scale=mesoderm_std,
+        # )
 
-        return l2_tissue + l2_meso
+        # return l2_tissue + l2_meso
+        return l2_tissue
 
     except ValueError as e:
         raise ValueError(

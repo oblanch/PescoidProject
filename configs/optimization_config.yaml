@@ -8,13 +8,13 @@ simulation:
   m_diffusivity: 1e-3  # artificial diffusivity on mesoderm for numerical stability
   tau_m: 6e0  # mesoderm growth timescale
   flow: 3e-1  # F, nondim advection or flow
-  activity: 1.15e0 # nondim activity parameter A
+  activity: 1.05e0 # nondim activity parameter A
   beta: 0.45 # β contribution of mesoderm fate to cell's contractility
   gamma: 1e-2  # Γ non friction coefficient
   sigma_c: 0.0  # σ_c (critical amount of mechanical feedback)
   r: 1e0  # r sensitivity of cells to mechanical feedback
   rho_sensitivity: 0.0  # saturation of active stress at high density
-  m_sensitivity: 0.09983981825459803  # sensitivity of the step function that increases contractility of cells expressing mesoderm
+  m_sensitivity: 0.09983981825459803  # sensitivity of the increase in contractility when cells become mesoderm
   feedback_mode: active_stress  # strain_rate or active_stress
 
 # Optimization configuration
@@ -23,7 +23,7 @@ cma:
     diffusivity: 1e-3
     tau_m: 6e0
     flow: 3e-1
-    activity: 1.15e0
+    activity: 1.05e0
     beta: 0.45
     gamma: 1e-2
     r: 1e0
@@ -33,7 +33,7 @@ cma:
   max_evals: 4000
   popsize: 36
   n_restarts: 4
-  tolstagnation: 10
+  tolstagnation: 8
   
   bounds:
     lower:

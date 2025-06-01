@@ -18,7 +18,7 @@ PARAM_NAMES_FORMAL = [
     "A\n(activity)",
     "β\n(contribution of mesoderm fate to cell's contractility)",
     "r\n(sensitivity of cells to mechanical feedback)",
-    "m_sensitivity\n(sensitivity of the step function that increases\ncontractility of cells expressing mesoderm)",
+    "m_sensitivity\n(sensitivity of the increase in contractility\nwhen cells become mesoderm)",
 ]
 
 
