@@ -28,6 +28,24 @@ def load_trajectory_data(
     return trajectory_data
 
 
+def calculate_normalization_scales(
+    experimental_data: Dict[str, np.ndarray],
+) -> Tuple[float, float]:
+    """Calculate scales for standard deviation-based normalization.
+
+    Returns:
+      Tuple of (tissue_std, mesoderm_std)
+    """
+    tissue_std = float(np.std(experimental_data["tissue_size"]))
+    mesoderm_std = float(np.std(experimental_data["mesoderm_signal"]))
+
+    # Protect against zero std (constant signals)
+    tissue_std = tissue_std if tissue_std > 0 else 1.0
+    mesoderm_std = mesoderm_std if mesoderm_std > 0 else 1.0
+
+    return tissue_std, mesoderm_std
+
+
 def interpolate_simulation_to_experimental_timepoints(
     sim_time_minutes: np.ndarray,
     sim_values: np.ndarray,
@@ -50,17 +68,22 @@ def interpolate_simulation_to_experimental_timepoints(
 def calculate_trajectory_mismatch(
     sim_interpolated: np.ndarray,
     exp_values: np.ndarray,
+    normalization_scale: float,
 ) -> float:
     """Calculate L2 norm squared between interpolated simulation and
-    experimental values.
+    experimental values with normalization.
     """
-    return float(np.linalg.norm(sim_interpolated - exp_values) ** 2)
+    sim_normalized = sim_interpolated / normalization_scale
+    exp_normalized = exp_values / normalization_scale
+    return float(np.linalg.norm(sim_normalized - exp_normalized) ** 2)
 
 
 def calculate_l2_errors(
     sim_data: Dict[str, np.ndarray], exp_data: Dict[str, np.ndarray]
 ) -> Tuple[float, float]:
-    """Calculate L2² errors for tissue size and mesoderm signal."""
+    """Calculate normalized L2² errors for tissue size and mesoderm signal."""
+    tissue_std, mesoderm_std = calculate_normalization_scales(exp_data)
+
     # Interpolate simulation data onto experimental time grid
     tissue_sim_interp = interpolate_simulation_to_experimental_timepoints(
         sim_data["time"], sim_data["tissue_size"], exp_data["time"]
@@ -73,8 +96,12 @@ def calculate_l2_errors(
     exp_tissue_valid = exp_data["tissue_size"][valid_exp_mask]
     exp_meso_valid = exp_data["mesoderm_signal"][valid_exp_mask]
 
-    tissue_l2_sq = calculate_trajectory_mismatch(tissue_sim_interp, exp_tissue_valid)
-    meso_l2_sq = calculate_trajectory_mismatch(meso_sim_interp, exp_meso_valid)
+    tissue_l2_sq = calculate_trajectory_mismatch(
+        tissue_sim_interp, exp_tissue_valid, tissue_std
+    )
+    meso_l2_sq = calculate_trajectory_mismatch(
+        meso_sim_interp, exp_meso_valid, mesoderm_std
+    )
 
     return tissue_l2_sq, meso_l2_sq
 
@@ -192,11 +219,11 @@ def plot_simulation_timeseries(
         bbox_to_anchor=(-0.275, 1.3),
     )
 
-    # Add L2² error text if experimental data is available
+    # Add normalized L2² error text if experimental data is available
     if experimental_data is not None:
         tissue_l2_sq, meso_l2_sq = calculate_l2_errors(data, experimental_data)
         error_text = (
-            f"L²(tissue) = {tissue_l2_sq:.2f}\n" f"L²(mesoderm) = {meso_l2_sq:.2f}\n"
+            f"L²(tissue) = {tissue_l2_sq:.3f}\n" f"L²(mesoderm) = {meso_l2_sq:.3f}\n"
         )
         ax1.text(
             0.5,

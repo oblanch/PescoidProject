@@ -560,14 +560,12 @@ class PescoidSimulator:
             edge_idx = len(x_coords) - 1
         return edge_x, edge_idx
 
-    def _area_norm(self, edge_x: float) -> float:
+    def _radius_norm(self, edge_x: float) -> float:
         """Calculate the normalized area based on the leading edge position.
 
-        A/(π r0²) = (edge_x/r0)²
+        Returns edge_x/r0.
         """
-        return (
-            (edge_x / self.initial_radius) ** 2 if self.initial_radius else float("NaN")
-        )
+        return (edge_x / self.initial_radius) if self.initial_radius else float("NaN")
 
     def _log_state(self, step_idx: int, current_time: float) -> None:
         """Calculate and log the simulation state."""
@@ -581,7 +579,7 @@ class PescoidSimulator:
 
         edge_x, edge_idx = self._compute_leading_edge(rho_vals, x_coords)
         stress_vals = self._compute_stress(rho_fn, m_fn)
-        area_star = self._area_norm(edge_x)
+        radius_star = self._radius_norm(edge_x)
 
         self.logger.log_snapshot(
             step_idx=step_idx,
@@ -594,7 +592,7 @@ class PescoidSimulator:
             edge_idx=edge_idx,
             meso_frac=meso_frac,
             max_m=max_m,
-            area_star=area_star,
+            radius_star=radius_star,
         )
 
     def save(self, file: str | Path) -> None:
