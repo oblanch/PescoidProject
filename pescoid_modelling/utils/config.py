@@ -39,7 +39,7 @@ class SimulationParams:
     r: float
     rho_sensitivity: float
     m_sensitivity: float
-    feedback_mode: str = "strain_rate"
+    feedback_mode: str = "active_stress"
 
 
 @dataclass(frozen=True)
