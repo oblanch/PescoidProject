@@ -22,6 +22,8 @@ def load_simulation_data(file_path: str) -> Dict[str, np.ndarray]:
     sim_data["mesoderm"] = np.flip(data["mesoderm"], axis=1)
     sim_data["max_mesoderm"] = data["max_mesoderm"]
     sim_data["mesoderm_fraction"] = data["mesoderm_fraction"]
+    sim_data["mesoderm_average"] = data["mesoderm_average"]
+    sim_data["mesoderm_center"] = data["mesoderm_center"]
     sim_data["velocity"] = np.flip(data["velocity"], axis=1)
     sim_data["stress"] = np.flip(data["stress"], axis=1)
     sim_data["time"] = data["time"]
@@ -266,3 +268,12 @@ def visualize_simulation_results(
     data = load_simulation_data(data_path)
     create_evolution_animations(data, output_dir)
     create_boundary_plots(data, output_dir)
+
+def main() -> None:
+    """Main function to run the visualization."""
+    data_path = ".../.../PescoidProject/opt_out/optimization_config/simulation_results.npz"
+    visualize_simulation_results(data_path)
+
+
+if __name__ == "__main__":
+    main()

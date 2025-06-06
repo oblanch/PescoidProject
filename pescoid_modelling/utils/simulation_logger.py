@@ -24,6 +24,8 @@ class SimulationLogger:
         ...     current_time=current_time,
         ...     rho_vals=rho_vals,
         ...     m_vals=m_vals,
+        ...     m_center=m_center,
+        ...     m_avg=m_avg,
         ...     u_vals=u_vals,
         ...     stress_vals=stress_vals,
         ...     edge_x=edge_x,
@@ -59,6 +61,8 @@ class SimulationLogger:
         self.boundary_positions = np.zeros(self.max_snapshots)
         self.boundary_velocity = np.zeros(self.max_snapshots)
         self.mesoderm_fraction = np.zeros(self.max_snapshots)
+        self.mesoderm_avg = np.zeros(self.max_snapshots)
+        self.mesoderm_center = np.zeros(self.max_snapshots)
         self.max_mesoderm = np.zeros(self.max_snapshots)
 
         self.x_coordinates = None
@@ -73,6 +77,8 @@ class SimulationLogger:
         current_time,
         rho_vals,
         m_vals,
+        m_center,
+        m_avg,
         u_vals,
         stress_vals,
         edge_x,
@@ -94,6 +100,8 @@ class SimulationLogger:
 
         self.density[self._snapshot_count] = rho_vals
         self.mesoderm[self._snapshot_count] = m_vals
+        self.mesoderm_center[self._snapshot_count] = m_center
+        self.mesoderm_avg[self._snapshot_count] = m_avg
         self.velocity[self._snapshot_count] = u_vals
         self.stress[self._snapshot_count] = stress_vals
 
@@ -112,6 +120,8 @@ class SimulationLogger:
             self.meso_mean = self.meso_mean[: self._snapshot_count]
             self.density = self.density[: self._snapshot_count]
             self.mesoderm = self.mesoderm[: self._snapshot_count]
+            self.mesoderm_center = self.mesoderm_center[: self._snapshot_count]
+            self.mesoderm_avg = self.mesoderm_avg[: self._snapshot_count]
             self.velocity = self.velocity[: self._snapshot_count]
             self.stress = self.stress[: self._snapshot_count]
             self.times = self.times[: self._snapshot_count]
@@ -129,6 +139,8 @@ class SimulationLogger:
             "boundary_positions": self.boundary_positions,
             "density": self.density,
             "mesoderm": self.mesoderm,
+            "mesoderm_center": self.mesoderm_center,
+            "mesoderm_average": self._normalize_mesoderm_data(self.mesoderm_avg),
             "velocity": self.velocity,
             "stress": self.stress,
             "boundary_times": self.times,

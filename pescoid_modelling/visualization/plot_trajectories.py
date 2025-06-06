@@ -24,6 +24,7 @@ def load_trajectory_data(
         trajectory_data["time"] = (
             trajectory_data["time"] * 30.0
         )  # Convert time to minutes
+        trajectory_data["mesoderm_signal"] = data["mesoderm_fraction"]
 
     return trajectory_data
 
@@ -268,7 +269,7 @@ def main(
     ) = "../../PescoidProject/data/experimental_timeseries.npz",
 ) -> None:
     """Main function to run the visualization."""
-    data_path = "simulation_results.npz"
+    data_path = "../../simulation_results.npz"
     visualize_simulation_results(data_path, experimental_npz)
 
 
