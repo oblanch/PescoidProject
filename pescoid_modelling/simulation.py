@@ -88,10 +88,11 @@ class PescoidSimulator:
         self._initialize_constants()
 
         self._initial_radius: float | None = None
+        self._half_domain_idx: int | None = None
 
     @property
     def initial_radius(self) -> float:
-        """Leading-edge radius of the *initial* density profile (cached)."""
+        """Leading-edge radius of the *initial* density profile."""
         if self._initial_radius is None:
             rho_fn, _, _ = self._previous_state.split()
             rho_vals = rho_fn.compute_vertex_values(self._mesh)
@@ -100,6 +101,15 @@ class PescoidSimulator:
             edge_x, _ = self._compute_leading_edge(rho_vals, x_coords)
             self._initial_radius = edge_x
         return self._initial_radius
+
+    @property
+    def half_domain_idx(self) -> int:
+        """Index at the center of the mesh."""
+        if self._half_domain_idx is None:
+            domain_length = getattr(self.params, "domain_length", 10.0)
+            mesh_spacing = getattr(self.params, "dx_interval", 5e-3)
+            self._half_domain_idx = int(np.round((domain_length / 2) / mesh_spacing))
+        return self._half_domain_idx
 
     def _set_simulation_time(
         self, total_hours: float = 12.0, minutes_per_generation: float = 30.0
@@ -149,7 +159,6 @@ class PescoidSimulator:
     def _initialize_simulation_and_solver(self) -> None:
         """Set up the simulation environment."""
         self._setup_mesh()
-        self._get_half_domain_idx()
         self._initialize_logger()
         self._setup_function_spaces()
         self._set_initial_conditions()
@@ -165,11 +174,6 @@ class PescoidSimulator:
         self._mesh = IntervalMesh(
             num_mesh_points, -half_domain_length, half_domain_length
         )
-    def _get_half_domain_idx(self) -> int:
-        """Get the index at the center of the mesh"""
-        domain_length = getattr(self.params, "domain_length", 10.0)
-        mesh_spacing = getattr(self.params, "dx_interval", 5e-3)
-        self.half_domain_idx = int(np.round((domain_length/2)/mesh_spacing))
 
     def _initialize_logger(self) -> None:
         """Initialize the simulation logger to record results."""
@@ -437,7 +441,7 @@ class PescoidSimulator:
         viscosity = rho_gate * u.dx(0) * test_u.dx(0) * dx  # type: ignore
         force = active_stress_div * test_u * dx  # type: ignore
 
-        # complete form
+        # Complete form
         return friction + viscosity - force
 
     def _calculate_stress_divergence(
@@ -567,32 +571,21 @@ class PescoidSimulator:
         return edge_x, edge_idx
 
     def _compute_mesoderm_fraction(
-            self, m_vals: np.array, edge_idx: float
+        self, m_vals: np.ndarray, edge_idx: float | None
     ) -> float:
-        '''Calculate the fraction of tissue that is expressing mesoderm
-        '''
-        
-        m_pos = []
-        m_neg = []
-        m_frac = []
-        i_range = None
+        """Calculate the fraction of tissue that is expressing mesoderm."""
+        if edge_idx is None:
+            return 0.0
 
-        start_index = self.half_domain_idx
-        if edge_idx is not None:
-            i_range = range(start_index,edge_idx)
-            for i in i_range:
-                if m_vals[i] > 0:
-                    m_pos.append(m_vals[i])  # Use append to add elements to the list
-                else:
-                    m_neg.append(m_vals[i])
-            m_frac = len(m_pos) / (len(m_neg)+len(m_pos))
-        return m_frac
-        
-    def _compute_mesoderm_average(
-            self, m_vals: np.array, edge_idx: int
-    ) -> float:
-        """ Takes average mesoderm values from everywhere within the tissue"""
-        meso_all = m_vals[self.half_domain_idx:edge_idx+1]
+        tissue_mesoderm = m_vals[self.half_domain_idx : int(edge_idx)]
+        if tissue_mesoderm.size == 0:
+            return 0.0
+
+        return (tissue_mesoderm > 0).mean()
+
+    def _compute_mesoderm_average(self, m_vals: np.ndarray, edge_idx: int) -> float:
+        """Get all-tissue mesoderm average."""
+        meso_all = m_vals[self.half_domain_idx : edge_idx + 1]
         meso_avg = meso_all.mean()
         return meso_avg
 
@@ -608,30 +601,29 @@ class PescoidSimulator:
         rho_fn, m_fn, u_fn = self._current_state.split()
         rho_vals = rho_fn.compute_vertex_values(self._mesh)
         m_vals = m_fn.compute_vertex_values(self._mesh)
-        m_center = m_vals[self.half_domain_idx]
         u_vals = u_fn.compute_vertex_values(self._mesh)
-        x_coords = self._mesh.coordinates().flatten()
-        max_m = m_vals.max()
+        stress_vals = self._compute_stress(rho_fn, m_fn)
 
+        x_coords = self._mesh.coordinates().flatten()
         edge_x, edge_idx = self._compute_leading_edge(rho_vals, x_coords)
+        radius_star = self._radius_norm(edge_x)
+
         meso_frac = self._compute_mesoderm_fraction(m_vals, edge_idx)
         m_avg = self._compute_mesoderm_average(m_vals, edge_idx)
-        stress_vals = self._compute_stress(rho_fn, m_fn)
-        radius_star = self._radius_norm(edge_x)
 
         self.logger.log_snapshot(
             step_idx=step_idx,
             current_time=current_time,
             rho_vals=rho_vals,
             m_vals=m_vals,
-            m_center = m_center,
-            m_avg= m_avg,
+            m_center=m_vals[self.half_domain_idx],
+            m_avg=m_avg,
             u_vals=u_vals,
             stress_vals=stress_vals,
             edge_x=edge_x,
             edge_idx=edge_idx,
             meso_frac=meso_frac,
-            max_m=max_m,
+            max_m=m_vals.max(),
             radius_star=radius_star,
         )
 

@@ -10,13 +10,47 @@ import numpy as np
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
 
+def visualize_simulation_results(
+    data_path: str,
+    experimental_npz: Optional[str] = None,
+    output_dir: str = ".",
+    save_prefix: str = "simulation",
+) -> None:
+    """Main function to visualize simulation results.
+
+    Args:
+      data_path: Path to the simulation NPZ file.
+      experimental_npz: Optional path to the experimental NPZ file.
+      output_dir: Directory to save the output plots.
+      save_prefix: Prefix for the saved plot files.
+
+    Examples::
+    >>> visualize_simulation_results(
+            data_path="simulation_results.npz",
+            experimental_npz="reference_timeseries.npz",
+        )
+    """
+    _set_matplotlib_publication_parameters()
+    os.makedirs(output_dir, exist_ok=True)
+
+    sim_data = load_trajectory_data(data_path, simulation=True)
+    experimental_data = None
+    if experimental_npz is not None:
+        experimental_data = load_trajectory_data(experimental_npz, simulation=False)
+        sim_data, experimental_data = truncate_to_common_timespan(
+            sim_data, experimental_data
+        )
+
+    plot_simulation_timeseries(sim_data, experimental_data, output_dir, save_prefix)
+
+
 def load_trajectory_data(
     file_path: str, simulation: bool = False
 ) -> Dict[str, np.ndarray]:
     """Load simulation NPZ."""
     data = np.load(file_path)
     trajectory_data = {}
-    trajectory_data["mesoderm_signal"] = data["mesoderm_signal"]
+    trajectory_data["mesoderm_fraction"] = data["mesoderm_fraction"]
     trajectory_data["tissue_size"] = data["tissue_size"]
     trajectory_data["time"] = data["time"]
 
@@ -24,7 +58,7 @@ def load_trajectory_data(
         trajectory_data["time"] = (
             trajectory_data["time"] * 30.0
         )  # Convert time to minutes
-        trajectory_data["mesoderm_signal"] = data["mesoderm_fraction"]
+        trajectory_data["mesoderm_fraction"] = data["mesoderm_fraction"]
 
     return trajectory_data
 
@@ -38,7 +72,7 @@ def calculate_normalization_scales(
       Tuple of (tissue_std, mesoderm_std)
     """
     tissue_std = float(np.std(experimental_data["tissue_size"]))
-    mesoderm_std = float(np.std(experimental_data["mesoderm_signal"]))
+    mesoderm_std = float(np.std(experimental_data["mesoderm_fraction"]))
 
     # Protect against zero std (constant signals)
     tissue_std = tissue_std if tissue_std > 0 else 1.0
@@ -78,7 +112,7 @@ def calculate_trajectory_mismatch(
 def calculate_l2_errors(
     sim_data: Dict[str, np.ndarray], exp_data: Dict[str, np.ndarray]
 ) -> Tuple[float, float]:
-    """Calculate normalized L2² errors for tissue size and mesoderm signal."""
+    """Calculate normalized L2² errors for tissue size and Mesoderm fraction."""
     tissue_std, mesoderm_std = calculate_normalization_scales(exp_data)
 
     # Interpolate simulation data onto experimental time grid
@@ -86,12 +120,12 @@ def calculate_l2_errors(
         sim_data["time"], sim_data["tissue_size"], exp_data["time"]
     )
     meso_sim_interp = interpolate_simulation_to_experimental_timepoints(
-        sim_data["time"], sim_data["mesoderm_signal"], exp_data["time"]
+        sim_data["time"], sim_data["mesoderm_fraction"], exp_data["time"]
     )
 
     valid_exp_mask = exp_data["time"] <= sim_data["time"][-1]
     exp_tissue_valid = exp_data["tissue_size"][valid_exp_mask]
-    exp_meso_valid = exp_data["mesoderm_signal"][valid_exp_mask]
+    exp_meso_valid = exp_data["mesoderm_fraction"][valid_exp_mask]
 
     tissue_l2_sq = calculate_trajectory_mismatch(
         tissue_sim_interp, exp_tissue_valid, tissue_std
@@ -127,7 +161,7 @@ def plot_simulation_timeseries(
     output_dir: str = ".",
     save_prefix: str = "simulation",
 ) -> None:
-    """Plot tissue size and mesoderm signal over time."""
+    """Plot tissue size and Mesoderm fraction over time."""
     base_width = 2.25
     base_height = 1.75
     ratio = 0.625
@@ -169,29 +203,29 @@ def plot_simulation_timeseries(
     ax1.tick_params(axis="y", labelcolor="tab:blue")
     ax1.spines["left"].set_color("tab:blue")
 
-    # Plot simulation mesoderm signal on secondary y-axis
+    # Plot simulation Mesoderm fraction on secondary y-axis
     ax2 = ax1.twinx()
     line2 = ax2.plot(
         data["time"],
-        data["mesoderm_signal"],
+        data["mesoderm_fraction"],
         color="tab:red",
         linewidth=0.75,
         linestyle="-",
-        label="Mesoderm signal (sim)",
+        label="Mesoderm fraction (sim)",
     )
 
-    # Plot experimental mesoderm signal
+    # Plot experimental Mesoderm fraction
     if experimental_data is not None:
         exp_line2 = ax2.plot(
             experimental_data["time"],
-            experimental_data["mesoderm_signal"],
+            experimental_data["mesoderm_fraction"],
             color="tab:red",
             linewidth=0.75,
             linestyle="--",
-            label="Mesoderm signal (exp)",
+            label="Mesoderm fraction (exp)",
         )
 
-    ax2.set_ylabel("Mesoderm signal", color="tab:red")
+    ax2.set_ylabel("Mesoderm fraction", color="tab:red")
     ax2.tick_params(axis="y", labelcolor="tab:red")
     ax2.spines["right"].set_color("tab:red")
 
@@ -240,38 +274,3 @@ def plot_simulation_timeseries(
     suffix = "_with_exp" if experimental_data is not None else ""
     output_path = os.path.join(output_dir, f"{save_prefix}_timeseries{suffix}.svg")
     plt.savefig(output_path, bbox_inches="tight")
-
-
-def visualize_simulation_results(
-    data_path: str,
-    experimental_npz: Optional[str] = None,
-    output_dir: str = ".",
-    save_prefix: str = "simulation",
-) -> None:
-    """Main function to visualize simulation results."""
-    _set_matplotlib_publication_parameters()
-    os.makedirs(output_dir, exist_ok=True)
-
-    sim_data = load_trajectory_data(data_path, simulation=True)
-    experimental_data = None
-    if experimental_npz is not None:
-        experimental_data = load_trajectory_data(experimental_npz, simulation=False)
-        sim_data, experimental_data = truncate_to_common_timespan(
-            sim_data, experimental_data
-        )
-
-    plot_simulation_timeseries(sim_data, experimental_data, output_dir, save_prefix)
-
-
-def main(
-    experimental_npz: (
-        str | None
-    ) = "../../PescoidProject/data/experimental_timeseries.npz",
-) -> None:
-    """Main function to run the visualization."""
-    data_path = "../../simulation_results.npz"
-    visualize_simulation_results(data_path, experimental_npz)
-
-
-if __name__ == "__main__":
-    main()

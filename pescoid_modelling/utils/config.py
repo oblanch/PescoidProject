@@ -2,9 +2,8 @@
 solver parameters and optimization settings."""
 
 from dataclasses import dataclass
-from dataclasses import fields
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import yaml  # type: ignore
 
@@ -22,23 +21,60 @@ _ORDER = [
 
 @dataclass(frozen=True)
 class SimulationParams:
-    """Class representing parameters for the pescoid model."""
+    """Class representing parameters for the pescoid model.
 
-    delta_t: float
-    total_hours: float
-    domain_length: float
-    dx_interval: float
-    diffusivity: float
-    m_diffusivity: float
-    tau_m: float
-    flow: float
-    activity: float
-    beta: float
-    gamma: float
-    sigma_c: float
-    r: float
-    rho_sensitivity: float
-    m_sensitivity: float
+    Attributes:
+      delta_t:
+        Time step (t_g units) & must be < the tau_m lower bound (the fastest
+        time-scale)
+      total_hours:
+        Total biological time to simulate [h].
+      domain_length:
+        Physical domain length (x ∈ [-L/2, L/2]) in nondim units
+      dx_interval:
+        IntervalMesh spacing.
+      diffusivity:
+        δ - nondim diffusivity
+      m_diffusivity:
+        Artificial diffusivity on mesoderm for numerical stability.
+      tau_m:
+        Mesoderm growth time-scale.
+      flow:
+        F - nondimensional advection or flow.
+      activity:
+        A - activity parameter.
+      beta:
+        β - contribution of mesoderm fate to cell's contractility
+      gamma:
+        Γ non friction coefficient.
+      sigma_c:
+        σ_c -critical amount of mechanical feedback)
+      r:
+        Sensitivity of cells to mechanical feedback
+      rho_sensitivity:
+        Saturation of active stress at high density
+      m_sensitivity:
+        Sensitivity of the increase in contractility when cells become mesoderm
+      feedback_mode:
+        Mode of mechanical feedback, either "active_stress" or
+        "strain_rate".
+    """
+
+    delta_t: float = 0.01
+    total_hours: float = 12.0
+    domain_length: float = 10.0
+    dx_interval: float = 0.001
+    diffusivity: float = 8.980959167540726e-05
+    m_diffusivity: float = 1e-3
+    tau_m: float = 5.96945686472471
+    flow: float = 0.14313330708373756
+    activity: float = 0.8177242457000748
+    beta: float = 0.6359440258892959
+    gamma: float = 0.19664898263383435
+    sigma_c: float = 0.0
+    r: float = 1.4355095309012016
+    rho_sensitivity: float = 0.0
+    m_sensitivity: float = 0.09628726199197271
     feedback_mode: str = "active_stress"
 
 
@@ -60,14 +96,18 @@ def _load_yaml(yaml_file: Union[Path, str]) -> Dict[str, Any]:
         return yaml.safe_load(stream)
 
 
-def load_config(path: Union[str, Path]) -> Tuple[SimulationParams, CMAConfig]:
+def load_config(
+    path: Union[str, Path], require_cma: bool = True
+) -> Tuple[SimulationParams, CMAConfig | None]:
     """Return parameters from YAML."""
-    data = _load_yaml(path)
-    sim = SimulationParams(**data["simulation"])
+    params = _load_yaml(path)
+    sim = SimulationParams(**params.get("simulation", {}))
 
-    cma_raw = data.get("cma")
+    cma_raw = params.get("cma")
     if cma_raw is None:
-        raise ValueError("Missing 'cma' configuration in YAML file")
+        if require_cma:
+            raise ValueError("Missing 'cma' section in config.")
+        return sim, None
 
     x0_vec = [float(cma_raw["x0"][k]) for k in _ORDER]
     lower_vec = [float(cma_raw["bounds"]["lower"][k]) for k in _ORDER]

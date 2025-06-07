@@ -22,6 +22,16 @@ PARAM_NAMES_FORMAL = [
 ]
 
 
+def plot_optimization_metrics(optim_csv: str = "cma_restart_4xrecentbest.dat") -> None:
+    """Entry point to plot optimization results."""
+    _set_matplotlib_publication_parameters()
+    iterations, fitness, sigma, params = load_cma_data(optim_csv)
+
+    plot_fitness(iterations, fitness)
+    plot_sigma(iterations, sigma)
+    plot_parameter_evolution(iterations, params, param_names=PARAM_NAMES_FORMAL)
+
+
 def load_cma_data(csv_file: str) -> Tuple[list, list, list, np.ndarray]:
     """Load CMA-ES optimization data."""
     col_names = [
@@ -144,17 +154,3 @@ def plot_parameter_evolution(
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # type: ignore
     plt.savefig("parameter_evolution.svg")
     plt.close()
-
-
-def main(optim_csv: str = "cma_restart_4xrecentbest.dat") -> None:
-    """Main function to run the visualization."""
-    _set_matplotlib_publication_parameters()
-    iterations, fitness, sigma, params = load_cma_data(optim_csv)
-
-    plot_fitness(iterations, fitness)
-    plot_sigma(iterations, sigma)
-    plot_parameter_evolution(iterations, params, param_names=PARAM_NAMES_FORMAL)
-
-
-if __name__ == "__main__":
-    main()

@@ -11,8 +11,8 @@ import numpy as np
 import psutil  # type: ignore
 from tqdm import tqdm  # type: ignore
 
-from pescoid_modelling.objective import ExperimentalTrajectories
 from pescoid_modelling.objective import optimization_objective
+from pescoid_modelling.objective import ReferenceTrajectories
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import _ORDER
 from pescoid_modelling.utils.config import SimulationParams
@@ -57,7 +57,7 @@ class CMAOptimizer:
         base_params: SimulationParams,
         init_guess: List[float],
         sigma: float,
-        experimental_data: ExperimentalTrajectories,
+        experimental_data: ReferenceTrajectories,
         bounds: Union[Tuple[List[float], List[float]], None] = None,
         max_evals: int = 256,
         popsize: int = 8,

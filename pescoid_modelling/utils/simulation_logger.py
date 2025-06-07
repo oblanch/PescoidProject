@@ -135,7 +135,7 @@ class SimulationLogger:
         return {
             "time": self.times,
             "tissue_size": self.radius_norm,
-            "mesoderm_signal": self.meso_mean,
+            "mesoderm_mean": self.meso_mean,
             "boundary_positions": self.boundary_positions,
             "density": self.density,
             "mesoderm": self.mesoderm,
@@ -162,5 +162,4 @@ class SimulationLogger:
         if m_max == m_min:
             return np.zeros_like(mesoderm_data)
 
-        normalized_data = (mesoderm_data - m_min) / (m_max - m_min)
-        return normalized_data
+        return (mesoderm_data - m_min) / (m_max - m_min)

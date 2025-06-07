@@ -1,25 +1,5 @@
-# Model configuration
-simulation:
-  delta_t: 0.01  # time step (t_g units) & must be < the tau_m lower bound (the fastest time-scale)
-  total_hours: 12.0  # simulated biological time [h]
-  domain_length: 10.0  # physical domain length (x ∈ [−L/2, L/2]) in nondim units
-  dx_interval: 0.001 # IntervalMesh spacing
-  diffusivity: 8.980959167540726e-05 # δ nondim diffusivity
-  m_diffusivity: 1e-3  # artificial diffusivity on mesoderm for numerical stability
-  tau_m: 5.96945686472471  # mesoderm growth timescale
-  flow: 0.14313330708373756  # F, nondim advection or flow
-  activity: 0.8177242457000748 # nondim activity parameter A
-  beta: 0.6359440258892959 # β contribution of mesoderm fate to cell's contractility
-  gamma: 0.19664898263383435  # Γ non friction coefficient
-  sigma_c: 0.0  # σ_c (critical amount of mechanical feedback)
-  r: 1.4355095309012016  # r sensitivity of cells to mechanical feedback
-  rho_sensitivity: 0.0  # saturation of active stress at high density
-  m_sensitivity: 0.09628726199197271  # sensitivity of the increase in contractility when cells become mesoderm
-  feedback_mode: active_stress  # strain_rate or active_stress
-
-# Optimization configuration
 cma:
-  x0:  # init
+  x0: 
     diffusivity: 1e-3
     tau_m: 6e0
     flow: 3e-1

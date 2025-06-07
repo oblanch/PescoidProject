@@ -1,13 +1,13 @@
 """Time series optimization objective for the pescoid model."""
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 
 
 @dataclass
-class ExperimentalTrajectories:
+class ReferenceTrajectories:
     """Dense trajectories that drive the optimizer."""
 
     time: np.ndarray
@@ -24,7 +24,7 @@ class ExperimentalTrajectories:
 
 
 def calculate_normalization_scales(
-    experimental_data: ExperimentalTrajectories,
+    experimental_data: ReferenceTrajectories,
 ) -> tuple[float, float]:
     """Calculate scales for standard deviation-based normalization.
 
@@ -41,26 +41,44 @@ def calculate_normalization_scales(
     return tissue_std, mesoderm_std
 
 
+def lease_sqaures_rescale(
+    sim: np.ndarray,
+    ref: np.ndarray,
+    eps: float = 1e-12,
+) -> Tuple[np.ndarray, float]:
+    """Compute & apply the least-squares amplitude scale to match reference.
+
+    Finds the scalar s minimizing ‖reference - s·simulation‖₂, then returns
+    (simulation * s, s).
+    """
+    denom: float = float(np.dot(sim, sim)) + eps
+    if denom < eps:
+        return sim, 1.0
+
+    scale: float = float(np.dot(sim, ref) / denom)
+    return scale * sim, scale
+
+
 def interpolate_simulation_to_experimental_timepoints(
     sim_time_generations: np.ndarray,
     sim_values: np.ndarray,
     exp_time_minutes: np.ndarray,
     minutes_per_generation: float = 30.0,
 ) -> np.ndarray:
-    """Interpolate simulation data onto experimental time grid in minutes.
+    """Interpolate simulation data onto reference time grid in minutes.
 
     Returns:
-      Interpolated simulation values at experimental time points
+      Interpolated simulation values at reference time points
 
     Raises:
-      ValueError: If no experimental time points are within simulation range
+      ValueError: If no reference time points are within simulation range
     """
     sim_time_minutes = sim_time_generations * minutes_per_generation
     valid_exp_mask = exp_time_minutes <= sim_time_minutes[-1]
 
     if not np.any(valid_exp_mask):
         raise ValueError(
-            f"No experimental time points within simulation range "
+            f"No reference time points within simulation range "
             f"(sim: 0-{sim_time_minutes[-1]:.1f} min, "
             f"exp: {exp_time_minutes[0]:.1f}-{exp_time_minutes[-1]:.1f} min)"
         )
@@ -74,7 +92,7 @@ def calculate_trajectory_mismatch(
     exp_values: np.ndarray,
     normalization_scale: float,
 ) -> float:
-    """Calculate L2 norm between interpolated simulation and experimental
+    """Calculate L2 norm between interpolated simulation and reference
     values with normalization.
     """
     sim_normalized = sim_interpolated / normalization_scale
@@ -84,13 +102,13 @@ def calculate_trajectory_mismatch(
 
 def optimization_objective(
     results: Dict[str, np.ndarray],
-    experimental_data: ExperimentalTrajectories,
+    experimental_data: ReferenceTrajectories,
     tissue_std: Optional[float] = None,
     mesoderm_std: Optional[float] = None,
     minutes_per_generation: float = 30.0,
 ) -> float:
     """Fitness cost function based on L2 norm of the mismatch between simulated
-    and experimental trajectories of tissue size L(t) and mesoderm signal M(t).
+    and reference trajectories of tissue size L(t) and mesoderm signal M(t).
 
     Args:
       results: Dictionary containing simulation results with keys:
@@ -121,15 +139,18 @@ def optimization_objective(
         L_sim_on_exp = interpolate_simulation_to_experimental_timepoints(
             t_sim, L_sim, experimental_data.time, minutes_per_generation
         )
-        # M_sim_on_exp = interpolate_simulation_to_experimental_timepoints(
-        #     t_sim, M_sim, experimental_data.time, minutes_per_generation
-        # )
+        M_sim_on_exp = interpolate_simulation_to_experimental_timepoints(
+            t_sim, M_sim, experimental_data.time, minutes_per_generation
+        )
 
-        # Get corresponding experimental values
+        # Get corresponding reference values
         sim_time_minutes = t_sim * minutes_per_generation
         valid_exp_mask = experimental_data.time <= sim_time_minutes[-1]
         exp_tissue_valid = experimental_data.tissue_size[valid_exp_mask]
-        # exp_meso_valid = experimental_data.mesoderm_signal[valid_exp_mask]
+        exp_meso_valid = experimental_data.mesoderm_signal[valid_exp_mask]
+
+        # Adjust mesoderm scale
+        M_sim_scaled, scale_factor = lease_sqaures_rescale(M_sim_on_exp, exp_meso_valid)
 
         # Loss
         l2_tissue = calculate_trajectory_mismatch(
@@ -137,18 +158,18 @@ def optimization_objective(
             exp_values=exp_tissue_valid,
             normalization_scale=tissue_std,
         )
-        # l2_meso = calculate_trajectory_mismatch(
-        #     sim_interpolated=M_sim_on_exp,
-        #     exp_values=exp_meso_valid,
-        #     normalization_scale=mesoderm_std,
-        # )
+        l2_meso = calculate_trajectory_mismatch(
+            sim_interpolated=M_sim_scaled,
+            exp_values=exp_meso_valid,
+            normalization_scale=mesoderm_std,
+        )
 
-        # return l2_tissue + l2_meso
-        return l2_tissue
+        return l2_tissue + l2_meso
+        # return l2_tissue
 
     except ValueError as e:
         raise ValueError(
-            "Simulation results are not compatible with experimental data."
+            "Simulation results are not compatible with reference data."
         ) from e
 
 
