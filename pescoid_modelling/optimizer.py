@@ -61,7 +61,7 @@ class CMAOptimizer:
         bounds: Union[Tuple[List[float], List[float]], None] = None,
         max_evals: int = 256,
         popsize: int = 8,
-        n_restarts: int = 3,
+        n_restarts: int = 4,
         objective_function: Callable[..., float] = optimization_objective,
     ) -> None:
         """Initialize the CMA-ES optimizer.
@@ -91,8 +91,12 @@ class CMAOptimizer:
         if bounds is not None:
             opts["bounds"] = [list(bounds[0]), list(bounds[1])]
 
-        self.es = cma.CMAEvolutionStrategy(init_guess, sigma, opts)
-        self.es.opts["restarts"] = n_restarts
+        self._es_opts = opts
+        self._sigma0 = sigma
+        self._x0 = init_guess
+        self._n_restarts = n_restarts
+
+        self.es = cma.CMAEvolutionStrategy(self._x0, self._sigma0, self._es_opts)
 
     def _evaluate_individual(self, x: List[float]) -> float:
         """Evaluate a single parameter vector by running a simulation.
@@ -113,14 +117,20 @@ class CMAOptimizer:
             simulator.run()
             results = simulator.results
 
-            if results.get("aborted", [False])[0]:
-                raise RuntimeError("Simulation aborted")
+            invalid = (
+                results.get("aborted", [False])[0]
+                or not np.isfinite(results["tissue_size"]).all()
+                or not np.isfinite(results["mesoderm_signal"]).all()
+            )
+
+            if invalid:
+                raise RuntimeError("Invalid simulation results")
+
+            return self.objective_function(results, self.experimental_data)
 
         except Exception as exc:
             print(f"Simulation failure ({exc}), penalizing...")
             return 1e9 * (1.0 + 0.01 * np.random.rand())
-
-        return self.objective_function(results, self.experimental_data)
 
     def optimize(self) -> SimulationParams:
         """Run the CMA-ES optimization process.
@@ -135,14 +145,12 @@ class CMAOptimizer:
                 "iteration,evaluations,best_fitness,mean_fitness,sigma,axis_ratio\n"
             )
 
-        restarts_left = int(self.es.opts.get("restarts", 0))
+        restarts_left = self._n_restarts
         iteration = 0
 
         with mp.Pool(processes=self.n_workers) as pool:
             while True:
-                logger = cma.CMADataLogger(
-                    str(self.work_dir / f"cma_restart_{restarts_left}")
-                )
+                logger = cma.CMADataLogger(str(self.work_dir / f"cma_restart.log"))
 
                 while not self.es.stop():
                     iteration += 1
@@ -166,8 +174,15 @@ class CMAOptimizer:
 
                 if restarts_left == 0:
                     break
+
                 restarts_left -= 1
-                self.es = self.es.restart(popsize_factor=1)  # type: ignore
+                self._x0 = self.es.result.xbest
+                self._sigma0 = self.es.sigma
+                new_opts = dict(self._es_opts)
+                new_opts["popsize"] = int(self.es.popsize * 2)
+
+                self.es = cma.CMAEvolutionStrategy(self._x0, self._sigma0, new_opts)
+                logger = cma.CMADataLogger(str(self.work_dir / "cma_optimization_data"))
 
         self._generate_optimization_plots(logger)
         best_x = self.es.result.xbest
