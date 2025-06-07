@@ -1,13 +1,13 @@
 cma:
   x0: 
-    diffusivity: 1e-3
-    tau_m: 6e0
-    flow: 3e-1
-    activity: 1.05e0
-    beta: 0.45
-    gamma: 1e-2
-    r: 1e0
-    m_sensitivity: 0.09983981825459803
+    diffusivity: 8.980959167540726e-05
+    tau_m: 5.96945686472471
+    flow: 0.14313330708373756
+    activity: 0.8177242457000748
+    beta: 0.6359440258892959
+    gamma: 0.19664898263383435
+    r: 1.4355095309012016
+    m_sensitivity: 0.09628726199197271
   
   sigma0: 0.15
   max_evals: 4000
