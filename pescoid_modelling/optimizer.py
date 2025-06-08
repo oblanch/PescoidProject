@@ -3,7 +3,7 @@
 from dataclasses import asdict
 import multiprocessing as mp
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
 
 import cma  # type: ignore
 from matplotlib import pyplot as plt
@@ -17,6 +17,7 @@ from pescoid_modelling.objective import ReferenceTrajectories
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import _ORDER
 from pescoid_modelling.utils.config import SimulationParams
+from pescoid_modelling.utils.parameter_scaler import ParamScaler
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
 
@@ -56,7 +57,7 @@ class CMAOptimizer:
         self,
         work_dir: Path,
         base_params: SimulationParams,
-        init_guess: List[float],
+        x0: List[float],
         sigma: float,
         experimental_data: ReferenceTrajectories,
         bounds: Union[Tuple[List[float], List[float]], None] = None,
@@ -81,22 +82,31 @@ class CMAOptimizer:
         self.objective_function = objective_function
         self.experimental_data = experimental_data
         self.work_dir = work_dir
-
         self.n_workers = get_physical_cores()
+        self._sigma0 = sigma
+        self._x0 = x0
+        self._n_restarts = n_restarts
 
         opts: Dict[str, Any] = {
             "verb_disp": 1,
             "maxfevals": max_evals,
             "popsize": popsize,
         }
-        if bounds is not None:
-            opts["bounds"] = [list(bounds[0]), list(bounds[1])]
+        if bounds is None:
+            raise ValueError("Bounds must be provided for normalization")
 
+        log_axes = {"diffusivity", "gamma", "m_sensitivity"}
+        self.scaler = ParamScaler(
+            lower=bounds[0],
+            upper=bounds[1],
+            log_mask=[name in log_axes for name in _ORDER],
+        )
+
+        x0_norm = self.scaler.to_normalized(x0)
+        opts["bounds"] = [np.zeros_like(x0_norm), np.ones_like(x0_norm)]
+
+        self._x0 = x0_norm.tolist()
         self._es_opts = opts
-        self._sigma0 = sigma
-        self._x0 = init_guess
-        self._n_restarts = n_restarts
-
         self.es = cma.CMAEvolutionStrategy(self._x0, self._sigma0, self._es_opts)
 
     def _evaluate_individual(self, x: List[float]) -> float:
@@ -117,14 +127,7 @@ class CMAOptimizer:
         try:
             simulator.run()
             results = simulator.results
-
-            invalid = (
-                results.get("aborted", [False])[0]
-                or not np.isfinite(results["tissue_size"]).all()
-                or not np.isfinite(results["mesoderm_signal"]).all()
-            )
-
-            if invalid:
+            if results.get("aborted", [False])[0]:
                 raise RuntimeError("Invalid simulation results")
 
             return self.objective_function(results, self.experimental_data)
@@ -186,8 +189,8 @@ class CMAOptimizer:
                 logger = cma.CMADataLogger(str(self.work_dir / "cma_optimization_data"))
 
         self._generate_optimization_plots(logger)
-        best_x = self.es.result.xbest
-        return self.vector_to_params(best_x, self.base_params)
+        best_x_norm = self.es.result.xbest
+        return self.vector_to_params(best_x_norm, self.base_params)
 
     def _generate_optimization_plots(self, logger: cma.CMADataLogger) -> None:
         """Generate and save optimization plots."""
@@ -202,10 +205,12 @@ class CMAOptimizer:
 
         print(f"Optimization plots saved to {self.work_dir}")
 
-    @staticmethod
-    def vector_to_params(v: List[float], base: SimulationParams) -> SimulationParams:
-        """Convert a vector of parameter values to SimulationParams."""
+    def vector_to_params(
+        self, v_norm: List[float], base: SimulationParams
+    ) -> SimulationParams:
+        """Convert normalised vector to physical SimulationParams."""
+        v_phys = self.scaler.to_physical(v_norm)
         kwargs = asdict(base)
-        for k, val in zip(_ORDER, v):
-            kwargs[k] = val
+        for k, val in zip(_ORDER, v_phys):
+            kwargs[k] = float(val)
         return SimulationParams(**kwargs)

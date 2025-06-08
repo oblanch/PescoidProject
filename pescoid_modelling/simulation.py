@@ -111,6 +111,14 @@ class PescoidSimulator:
             self._half_domain_idx = int(np.round((domain_length / 2) / mesh_spacing))
         return self._half_domain_idx
 
+    @property
+    def results(self) -> Dict[str, np.ndarray]:
+        """Return simulation results as a dictionary."""
+        result_dict = self.logger.to_dict()
+        result_dict["aborted"] = np.asarray([self.aborted])
+        result_dict["dt"] = np.asarray([self.time_step])
+        return result_dict
+
     def _set_simulation_time(
         self, total_hours: float = 12.0, minutes_per_generation: float = 30.0
     ) -> None:
@@ -608,7 +616,7 @@ class PescoidSimulator:
         edge_x, edge_idx = self._compute_leading_edge(rho_vals, x_coords)
         radius_star = self._radius_norm(edge_x)
 
-        meso_frac = self._compute_mesoderm_fraction(m_vals, edge_idx)
+        mesoderm_fraction = self._compute_mesoderm_fraction(m_vals, edge_idx)
         m_avg = self._compute_mesoderm_average(m_vals, edge_idx)
 
         self.logger.log_snapshot(
@@ -622,22 +630,14 @@ class PescoidSimulator:
             stress_vals=stress_vals,
             edge_x=edge_x,
             edge_idx=edge_idx,
-            meso_frac=meso_frac,
+            mesoderm_fraction=mesoderm_fraction,
             max_m=m_vals.max(),
-            radius_star=radius_star,
+            tissue_size=radius_star,
         )
 
     def save(self, file: str | Path) -> None:
         out = Path(file).with_suffix(".npz")
         np.savez_compressed(out, allow_pickle=False, **self.results)
-
-    @property
-    def results(self) -> Dict[str, np.ndarray]:
-        """Return simulation results as a dictionary."""
-        result_dict = self.logger.to_dict()
-        result_dict["aborted"] = np.asarray([self.aborted])
-        result_dict["dt"] = np.asarray([self.time_step])
-        return result_dict
 
     @staticmethod
     def _ensure_non_negative(var_fn: Function) -> Function:

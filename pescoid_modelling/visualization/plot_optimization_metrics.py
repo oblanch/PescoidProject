@@ -327,7 +327,3 @@ def plot_parameter_evolution(
     plt.tight_layout(h_pad=1.5)
     plt.savefig("parameter_evolution.svg")
     plt.close()
-
-
-if __name__ == "__main__":
-    plot_optimization_metrics()

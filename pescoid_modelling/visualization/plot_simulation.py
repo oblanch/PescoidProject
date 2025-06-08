@@ -269,9 +269,12 @@ def visualize_simulation_results(
     create_evolution_animations(data, output_dir)
     create_boundary_plots(data, output_dir)
 
+
 def main() -> None:
     """Main function to run the visualization."""
-    data_path = ".../.../PescoidProject/opt_out/optimization_config/simulation_results.npz"
+    data_path = (
+        ".../.../PescoidProject/opt_out/optimization_config/simulation_results.npz"
+    )
     visualize_simulation_results(data_path)
 
 

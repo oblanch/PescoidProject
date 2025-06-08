@@ -28,12 +28,12 @@ def make_reference_timeseries(
     meso_sm = savgol_filter(fraction, window_length, polyorder)
 
     max_idx = int(np.argmax(meso_sm))
-    meso_frac = meso_sm.copy()
-    meso_frac[max_idx:] = meso_sm[max_idx]
+    mesoderm_fraction = meso_sm.copy()
+    mesoderm_fraction[max_idx:] = meso_sm[max_idx]
 
     np.savez(
         "reference_timeseries.npz",
         time=time,
         tissue_size=radius_sm,
-        mesoderm_fraction=meso_frac,
+        mesoderm_fraction=mesoderm_fraction,
     )

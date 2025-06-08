@@ -30,7 +30,7 @@ class SimulationLogger:
         ...     stress_vals=stress_vals,
         ...     edge_x=edge_x,
         ...     edge_idx=edge_idx,
-        ...     meso_frac=meso_frac,
+        ...     mesoderm_fraction=mesoderm_fraction,
         ...     max_m=max_m,
         ... )
     """
@@ -55,7 +55,7 @@ class SimulationLogger:
         self.velocity = np.zeros((self.max_snapshots, mesh_size))
         self.stress = np.zeros((self.max_snapshots, mesh_size))
 
-        self.radius_norm = np.zeros(self.max_snapshots)
+        self.tissue_size = np.zeros(self.max_snapshots)
         self.meso_mean = np.zeros(self.max_snapshots)
         self.times = np.zeros(self.max_snapshots)
         self.boundary_positions = np.zeros(self.max_snapshots)
@@ -83,9 +83,9 @@ class SimulationLogger:
         stress_vals,
         edge_x,
         edge_idx,
-        meso_frac,
+        mesoderm_fraction,
         max_m,
-        radius_star,
+        tissue_size,
         x_coords=None,
     ):
         """Log a snapshot of simulation data."""
@@ -95,7 +95,7 @@ class SimulationLogger:
         if self.x_coordinates is None and x_coords is not None:
             self.x_coordinates = x_coords.copy()
 
-        self.radius_norm[self._snapshot_count] = float(radius_star)
+        self.tissue_size[self._snapshot_count] = float(tissue_size)
         self.meso_mean[self._snapshot_count] = float(m_vals.mean())
 
         self.density[self._snapshot_count] = rho_vals
@@ -108,7 +108,7 @@ class SimulationLogger:
         self.times[self._snapshot_count] = current_time
         self.boundary_positions[self._snapshot_count] = float(edge_x)
         self.boundary_velocity[self._snapshot_count] = float(u_vals[edge_idx])
-        self.mesoderm_fraction[self._snapshot_count] = float(meso_frac)
+        self.mesoderm_fraction[self._snapshot_count] = float(mesoderm_fraction)
         self.max_mesoderm[self._snapshot_count] = float(max_m)
 
         self._snapshot_count += 1
@@ -116,7 +116,7 @@ class SimulationLogger:
     def finalize(self) -> None:
         """Trim unused space in pre-allocated arrays."""
         if self._snapshot_count < self.max_snapshots:
-            self.radius_norm = self.radius_norm[: self._snapshot_count]
+            self.tissue_size = self.tissue_size[: self._snapshot_count]
             self.meso_mean = self.meso_mean[: self._snapshot_count]
             self.density = self.density[: self._snapshot_count]
             self.mesoderm = self.mesoderm[: self._snapshot_count]
@@ -134,7 +134,7 @@ class SimulationLogger:
         """Convert all logs to a dictionary for saving or analysis."""
         return {
             "time": self.times,
-            "tissue_size": self.radius_norm,
+            "tissue_size": self.tissue_size,
             "mesoderm_mean": self.meso_mean,
             "boundary_positions": self.boundary_positions,
             "density": self.density,

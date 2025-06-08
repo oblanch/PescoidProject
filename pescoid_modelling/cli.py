@@ -32,7 +32,7 @@ def _load_trajectories(path: Path) -> ReferenceTrajectories:
         return ReferenceTrajectories(
             time=data["time"],
             tissue_size=data["tissue_size"],
-            mesoderm_signal=data["mesoderm_fraction"],
+            mesoderm_fraction=data["mesoderm_fraction"],
         )
     except KeyError as e:
         raise ValueError(
@@ -140,7 +140,7 @@ def _run_optimization(args: argparse.Namespace) -> None:
     optimizer = CMAOptimizer(
         work_dir=work_dir,
         base_params=sim_params,
-        init_guess=cma_cfg.x0,
+        x0=cma_cfg.x0,
         sigma=cma_cfg.sigma0,
         bounds=cma_cfg.bounds,
         max_evals=cma_cfg.max_evals,

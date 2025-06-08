@@ -15,11 +15,11 @@ class ReferenceTrajectories:
 
     time: np.ndarray
     tissue_size: np.ndarray  # L_exp(t)
-    mesoderm_signal: np.ndarray  # M_exp(t)
+    mesoderm_fraction: np.ndarray  # M_exp(t)
 
     def __post_init__(self):
         """Validate that all arrays have the same length."""
-        if not (len(self.time) == len(self.tissue_size) == len(self.mesoderm_signal)):
+        if not (len(self.time) == len(self.tissue_size) == len(self.mesoderm_fraction)):
             raise ValueError("All trajectory arrays must have the same length")
 
         if not np.all(np.diff(self.time) > 0):
@@ -42,7 +42,7 @@ def calculate_normalization_scales(
       Tuple of (tissue_std, mesoderm_std)
     """
     tissue_std = float(np.std(experimental_data.tissue_size))
-    mesoderm_std = float(np.std(experimental_data.mesoderm_signal))
+    mesoderm_std = float(np.std(experimental_data.mesoderm_fraction))
 
     # Protect against zero std (constant signals)
     tissue_std = tissue_std if tissue_std > 0 else 1.0
@@ -124,7 +124,7 @@ def optimization_objective(
       results: Dictionary containing simulation results with keys:
         - "time": time points (in generation units)
         - "tissue_size": L_sim(t)
-        - "mesoderm_signal": M_sim(t)
+        - "mesoderm_fraction": M_sim(t)
       experimental_data: Experimental trajectories to match (time in minutes).
       minutes_per_generation: Conversion factor from generation units to
       minutes.
@@ -138,7 +138,7 @@ def optimization_objective(
 
     t_sim = results.get("time", np.array([]))
     L_sim = results.get("tissue_size", np.array([]))
-    M_sim = results.get("mesoderm_signal", np.array([]))
+    M_sim = results.get("mesoderm_fraction", np.array([]))
 
     if not _check_simulation_results(t_sim, L_sim, M_sim):
         return _invalid_fitness()
@@ -161,13 +161,13 @@ def optimization_objective(
 
         valid_exp_mask = experimental_data.time <= sim_time_minutes[-1]
         exp_tissue_valid = experimental_data.tissue_size[valid_exp_mask]
-        exp_meso_valid = experimental_data.mesoderm_signal[valid_exp_mask]
+        exp_meso_valid = experimental_data.mesoderm_fraction[valid_exp_mask]
 
-        # Adjust mesoderm scale
-        M_sim_scaled, scale_factor = least_squares_rescale(M_sim_on_exp, exp_meso_valid)
-        print(
-            f"Rescaled mesoderm signal by scale_factor {scale_factor:.4f} to match reference"
-        )
+        # # Adjust mesoderm scale
+        # M_sim_scaled, scale_factor = least_squares_rescale(M_sim_on_exp, exp_meso_valid)
+        # print(
+        #     f"Rescaled mesoderm signal by scale_factor {scale_factor:.4f} to match reference"
+        # )
 
         # Loss
         l2_tissue = calculate_trajectory_mismatch(
@@ -176,10 +176,15 @@ def optimization_objective(
             normalization_scale=tissue_std,
         )
         l2_meso = calculate_trajectory_mismatch(
-            sim_interpolated=M_sim_scaled,
+            sim_interpolated=M_sim_on_exp,
             exp_values=exp_meso_valid,
             normalization_scale=mesoderm_std,
         )
+        # l2_meso = calculate_trajectory_mismatch(
+        #     sim_interpolated=M_sim_scaled,
+        #     exp_values=exp_meso_valid,
+        #     normalization_scale=mesoderm_std,
+        # )
 
         return l2_tissue + l2_meso
         # return l2_tissue
