@@ -5,6 +5,9 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 
+from pescoid_modelling.utils.constants import JITTER
+from pescoid_modelling.utils.constants import OPTIM_PENALTY
+
 
 @dataclass
 class ReferenceTrajectories:
@@ -21,6 +24,13 @@ class ReferenceTrajectories:
 
         if not np.all(np.diff(self.time) > 0):
             raise ValueError("Time array must be monotonically increasing")
+
+
+def _invalid_fitness() -> float:
+    """Return a fitness for failed or too-short simulations. Adds a small jitter
+    term to avoid premature termination.
+    """
+    return OPTIM_PENALTY * (1.0 + JITTER * np.random.randn())
 
 
 def calculate_normalization_scales(
@@ -41,7 +51,7 @@ def calculate_normalization_scales(
     return tissue_std, mesoderm_std
 
 
-def lease_sqaures_rescale(
+def least_squares_rescale(
     sim: np.ndarray,
     ref: np.ndarray,
     eps: float = 1e-12,
@@ -57,6 +67,19 @@ def lease_sqaures_rescale(
 
     scale: float = float(np.dot(sim, ref) / denom)
     return scale * sim, scale
+
+
+def calculate_trajectory_mismatch(
+    sim_interpolated: np.ndarray,
+    exp_values: np.ndarray,
+    normalization_scale: float,
+) -> float:
+    """Calculate L2 norm squared between interpolated simulation and
+    experimental values with normalization.
+    """
+    sim_normalized = sim_interpolated / normalization_scale
+    exp_normalized = exp_values / normalization_scale
+    return float(np.linalg.norm(sim_normalized - exp_normalized) ** 2)
 
 
 def interpolate_simulation_to_experimental_timepoints(
@@ -87,19 +110,6 @@ def interpolate_simulation_to_experimental_timepoints(
     return np.interp(exp_time_valid, sim_time_minutes, sim_values)
 
 
-def calculate_trajectory_mismatch(
-    sim_interpolated: np.ndarray,
-    exp_values: np.ndarray,
-    normalization_scale: float,
-) -> float:
-    """Calculate L2 norm between interpolated simulation and reference
-    values with normalization.
-    """
-    sim_normalized = sim_interpolated / normalization_scale
-    exp_normalized = exp_values / normalization_scale
-    return float(np.linalg.norm(sim_normalized - exp_normalized) ** 2)
-
-
 def optimization_objective(
     results: Dict[str, np.ndarray],
     experimental_data: ReferenceTrajectories,
@@ -120,17 +130,18 @@ def optimization_objective(
       minutes.
 
     Returns:
-      L2 error value. Returns 1e9 for invalid/failed simulations.
+      L2 error value or calls `_invalid_fitness()` if results are invalid or
+      simulation is too short.
     """
     if not results:
-        return 1e9
+        return _invalid_fitness()
 
     t_sim = results.get("time", np.array([]))
     L_sim = results.get("tissue_size", np.array([]))
     M_sim = results.get("mesoderm_signal", np.array([]))
 
     if not _check_simulation_results(t_sim, L_sim, M_sim):
-        return 1e9
+        return _invalid_fitness()
 
     try:
         if tissue_std is None or mesoderm_std is None:
@@ -145,12 +156,18 @@ def optimization_objective(
 
         # Get corresponding reference values
         sim_time_minutes = t_sim * minutes_per_generation
+        if not _check_simulation_length(sim_time_minutes, experimental_data):
+            return _invalid_fitness()
+
         valid_exp_mask = experimental_data.time <= sim_time_minutes[-1]
         exp_tissue_valid = experimental_data.tissue_size[valid_exp_mask]
         exp_meso_valid = experimental_data.mesoderm_signal[valid_exp_mask]
 
         # Adjust mesoderm scale
-        M_sim_scaled, scale_factor = lease_sqaures_rescale(M_sim_on_exp, exp_meso_valid)
+        M_sim_scaled, scale_factor = least_squares_rescale(M_sim_on_exp, exp_meso_valid)
+        print(
+            f"Rescaled mesoderm signal by scale_factor {scale_factor:.4f} to match reference"
+        )
 
         # Loss
         l2_tissue = calculate_trajectory_mismatch(
@@ -171,6 +188,18 @@ def optimization_objective(
         raise ValueError(
             "Simulation results are not compatible with reference data."
         ) from e
+
+
+def _check_simulation_length(
+    sim_time_minutes: np.ndarray,
+    experimental_data: ReferenceTrajectories,
+) -> bool:
+    """Check that simulation runs long enough to avoid comparing premature
+    curves.
+    """
+    if experimental_data.time[-1] - sim_time_minutes[-1] > 1e-3:
+        return False
+    return True
 
 
 def _check_simulation_results(

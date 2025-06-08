@@ -1,0 +1,17 @@
+simulation:
+  delta_t: 0.01
+  total_hours: 12.0
+  domain_length: 10.0
+  dx_interval: 0.001
+  diffusivity: 0.0013494220700846476
+  m_diffusivity: 1e-3
+  tau_m: 5.92913449888712
+  flow: 0.08511151899437021
+  activity: 1.0277266952654927
+  beta: 0.4889471652328016
+  gamma: 0.3100115596692665
+  sigma_c: 0.0
+  r: 1.145219538183228
+  rho_sensitivity: 0.0
+  m_sensitivity: 0.09998335352515364
+  feedback_mode: active_stress

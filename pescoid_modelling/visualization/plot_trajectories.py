@@ -7,6 +7,8 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pescoid_modelling.objective import calculate_trajectory_mismatch
+from pescoid_modelling.objective import least_squares_rescale
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
 
@@ -96,19 +98,6 @@ def interpolate_simulation_to_experimental_timepoints(
     return np.interp(exp_time_valid, sim_time_minutes, sim_values)
 
 
-def calculate_trajectory_mismatch(
-    sim_interpolated: np.ndarray,
-    exp_values: np.ndarray,
-    normalization_scale: float,
-) -> float:
-    """Calculate L2 norm squared between interpolated simulation and
-    experimental values with normalization.
-    """
-    sim_normalized = sim_interpolated / normalization_scale
-    exp_normalized = exp_values / normalization_scale
-    return float(np.linalg.norm(sim_normalized - exp_normalized) ** 2)
-
-
 def calculate_l2_errors(
     sim_data: Dict[str, np.ndarray], exp_data: Dict[str, np.ndarray]
 ) -> Tuple[float, float]:
@@ -127,11 +116,14 @@ def calculate_l2_errors(
     exp_tissue_valid = exp_data["tissue_size"][valid_exp_mask]
     exp_meso_valid = exp_data["mesoderm_fraction"][valid_exp_mask]
 
+    meso_sim_scaled, scale_factor = least_squares_rescale(
+        meso_sim_interp, exp_meso_valid
+    )
     tissue_l2_sq = calculate_trajectory_mismatch(
         tissue_sim_interp, exp_tissue_valid, tissue_std
     )
     meso_l2_sq = calculate_trajectory_mismatch(
-        meso_sim_interp, exp_meso_valid, mesoderm_std
+        meso_sim_scaled, exp_meso_valid, mesoderm_std
     )
 
     return tissue_l2_sq, meso_l2_sq

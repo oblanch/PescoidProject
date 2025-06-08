@@ -11,6 +11,7 @@ import numpy as np
 import psutil  # type: ignore
 from tqdm import tqdm  # type: ignore
 
+from pescoid_modelling.objective import _invalid_fitness
 from pescoid_modelling.objective import optimization_objective
 from pescoid_modelling.objective import ReferenceTrajectories
 from pescoid_modelling.simulation import PescoidSimulator
@@ -130,7 +131,7 @@ class CMAOptimizer:
 
         except Exception as exc:
             print(f"Simulation failure ({exc}), penalizing...")
-            return 1e9 * (1.0 + 0.01 * np.random.rand())
+            return _invalid_fitness()
 
     def optimize(self) -> SimulationParams:
         """Run the CMA-ES optimization process.
@@ -179,7 +180,7 @@ class CMAOptimizer:
                 self._x0 = self.es.result.xbest
                 self._sigma0 = self.es.sigma
                 new_opts = dict(self._es_opts)
-                new_opts["popsize"] = int(self.es.popsize * 2)
+                # new_opts["popsize"] = int(self.es.popsize * 2)
 
                 self.es = cma.CMAEvolutionStrategy(self._x0, self._sigma0, new_opts)
                 logger = cma.CMADataLogger(str(self.work_dir / "cma_optimization_data"))

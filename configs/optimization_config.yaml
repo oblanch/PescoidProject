@@ -9,7 +9,7 @@ cma:
     r: 1.4355095309012016
     m_sensitivity: 0.09628726199197271
   
-  sigma0: 0.15
+  sigma0: 0.05
   max_evals: 4000
   popsize: 36
   n_restarts: 4
