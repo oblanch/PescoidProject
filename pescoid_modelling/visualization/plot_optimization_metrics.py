@@ -10,17 +10,6 @@ import pandas as pd
 from pescoid_modelling.utils.config import _ORDER
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
-# PARAM_NAMES_FORMAL = [
-#     "δ\n(diffusivity)",
-#     "F\n(advection)",
-#     "Tau_m\n(mesoderm growth timescale)",
-#     "Γ\n(non friction coefficient)",
-#     "A\n(activity)",
-#     "β\n(contribution of mesoderm fate to cell's contractility)",
-#     "r\n(sensitivity of cells to mechanical feedback)",
-#     "m_sensitivity\n(sensitivity of the increase in contractility\nwhen cells become mesoderm)",
-# ]
-
 PARAM_NAMES_FORMAL = [
     "δ",
     "F",

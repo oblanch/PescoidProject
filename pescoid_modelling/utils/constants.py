@@ -1,13 +1,19 @@
 """Constants for pescoid modelling."""
 
-SNAPSHOT_EVERY_N_STEPS = 10
-LEADING_EDGE_THRESHOLD = 0.2
-RHO_GATE_CENTER = 0.02
-RHO_GATE_WIDTH = 0.01
-ETA = 1.0
-INITIAL_AMPLITUDE = 1.0
-TRANSITION_WIDTH = 1e-2
-LENGTH_SCALE = 1.0
+# simulation constants
+SNAPSHOT_EVERY_N_STEPS: int = 10
+LEADING_EDGE_THRESHOLD: float = 0.2
+RHO_GATE_CENTER: float = 0.02
+RHO_GATE_WIDTH: float = 0.01
+ETA: float = 1.0
+INITIAL_AMPLITUDE: float = 1.0
+TRANSITION_WIDTH: float = 1e-2
+LENGTH_SCALE: float = 1.0
 
-OPTIM_PENALTY = 1e4
-JITTER = 1e-6
+# optimization penalties
+OPTIM_PENALTY: float = 1e4
+JITTER: float = 1e-6
+
+# constants for dynamic loss weighting
+EPS: float = 1e-9
+EMA_ALPHA: float = 0.2

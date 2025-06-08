@@ -7,8 +7,7 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pescoid_modelling.objective import calculate_trajectory_mismatch
-from pescoid_modelling.objective import least_squares_rescale
+from pescoid_modelling.objective import _calculate_trajectory_mismatch
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
 
@@ -116,16 +115,16 @@ def calculate_l2_errors(
     exp_tissue_valid = exp_data["tissue_size"][valid_exp_mask]
     exp_meso_valid = exp_data["mesoderm_fraction"][valid_exp_mask]
 
-    # meso_sim_scaled, scale_factor = least_squares_rescale(
+    # meso_sim_scaled, scale_factor = _least_squares_rescale(
     #     meso_sim_interp, exp_meso_valid
     # )
-    tissue_l2_sq = calculate_trajectory_mismatch(
+    tissue_l2_sq = _calculate_trajectory_mismatch(
         tissue_sim_interp, exp_tissue_valid, tissue_std
     )
-    meso_l2_sq = calculate_trajectory_mismatch(
+    meso_l2_sq = _calculate_trajectory_mismatch(
         meso_sim_interp, exp_meso_valid, mesoderm_std
     )
-    # meso_l2_sq = calculate_trajectory_mismatch(
+    # meso_l2_sq = _calculate_trajectory_mismatch(
     #     meso_sim_scaled, exp_meso_valid, mesoderm_std
     # )
 

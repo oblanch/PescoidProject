@@ -1,12 +1,17 @@
 """Time series optimization objective for the pescoid model."""
 
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Dict, MutableMapping, Optional, Tuple
 
 import numpy as np
 
+from pescoid_modelling.utils.constants import EMA_ALPHA
+from pescoid_modelling.utils.constants import EPS
 from pescoid_modelling.utils.constants import JITTER
 from pescoid_modelling.utils.constants import OPTIM_PENALTY
+
+_RUNNING_EMA: Dict[str, Optional[float]] = defaultdict(lambda: None)
 
 
 @dataclass
@@ -26,6 +31,15 @@ class ReferenceTrajectories:
             raise ValueError("Time array must be monotonically increasing")
 
 
+def _require_exponential_moving_average(
+    ema_dict: MutableMapping[str, Optional[float]] | None = None,
+) -> MutableMapping[str, Optional[float]]:
+    """Ensure an EMA dictionary is available, creating a new one if necessary."""
+    if ema_dict is None:
+        ema_dict = defaultdict(lambda: None)
+    return ema_dict
+
+
 def _invalid_fitness() -> float:
     """Return a fitness for failed or too-short simulations. Adds a small jitter
     term to avoid premature termination.
@@ -33,9 +47,9 @@ def _invalid_fitness() -> float:
     return OPTIM_PENALTY * (1.0 + JITTER * np.random.randn())
 
 
-def calculate_normalization_scales(
+def _calculate_normalization_scales(
     experimental_data: ReferenceTrajectories,
-) -> tuple[float, float]:
+) -> Tuple[float, float]:
     """Calculate scales for standard deviation-based normalization.
 
     Returns:
@@ -51,25 +65,7 @@ def calculate_normalization_scales(
     return tissue_std, mesoderm_std
 
 
-def least_squares_rescale(
-    sim: np.ndarray,
-    ref: np.ndarray,
-    eps: float = 1e-12,
-) -> Tuple[np.ndarray, float]:
-    """Compute & apply the least-squares amplitude scale to match reference.
-
-    Finds the scalar s minimizing ‖reference - s·simulation‖₂, then returns
-    (simulation * s, s).
-    """
-    denom: float = float(np.dot(sim, sim)) + eps
-    if denom < eps:
-        return sim, 1.0
-
-    scale: float = float(np.dot(sim, ref) / denom)
-    return scale * sim, scale
-
-
-def calculate_trajectory_mismatch(
+def _calculate_trajectory_mismatch(
     sim_interpolated: np.ndarray,
     exp_values: np.ndarray,
     normalization_scale: float,
@@ -82,7 +78,7 @@ def calculate_trajectory_mismatch(
     return float(np.linalg.norm(sim_normalized - exp_normalized) ** 2)
 
 
-def interpolate_simulation_to_experimental_timepoints(
+def _interpolate_simulation_to_experimental_timepoints(
     sim_time_generations: np.ndarray,
     sim_values: np.ndarray,
     exp_time_minutes: np.ndarray,
@@ -110,12 +106,51 @@ def interpolate_simulation_to_experimental_timepoints(
     return np.interp(exp_time_valid, sim_time_minutes, sim_values)
 
 
+def _ema_update(
+    tag: str,
+    value: float,
+    ema_dict: MutableMapping[str, Optional[float]],
+    alpha: float = EMA_ALPHA,
+) -> float:
+    """Exponential-moving-average update."""
+    prev = ema_dict.get(tag)
+    ema_dict[tag] = value if prev is None else (1.0 - alpha) * prev + alpha * value
+    return ema_dict[tag]  # type: ignore
+
+
+def _compute_dynamic_weights(
+    losses: Dict[str, float],
+    ema_dict: MutableMapping[str, Optional[float]],
+    eps: float = EPS,
+    w_clip: Tuple[float, float] = (0.05, 1.95),
+) -> Dict[str, float]:
+    """Inverse-EMA weighting."""
+    for tag, val in losses.items():
+        _ema_update(tag, val, ema_dict)
+
+    inv: Dict[str, float] = {}
+    for tag, cur_loss in losses.items():
+        ema_val = ema_dict[tag]
+        baseline = cur_loss if ema_val is None else ema_val
+        inv[tag] = 1.0 / max(baseline, eps)
+
+    total_inv = sum(inv.values())
+    if total_inv < eps:
+        return {k: 1.0 for k in losses}
+
+    scale = 2.0 / total_inv
+    weights = {k: np.clip(v * scale, *w_clip) for k, v in inv.items()}
+    return weights
+
+
 def optimization_objective(
     results: Dict[str, np.ndarray],
     experimental_data: ReferenceTrajectories,
     tissue_std: Optional[float] = None,
     mesoderm_std: Optional[float] = None,
     minutes_per_generation: float = 30.0,
+    *,
+    ema_dict: MutableMapping[str, Optional[float]] | None = None,
 ) -> float:
     """Fitness cost function based on L2 norm of the mismatch between simulated
     and reference trajectories of tissue size L(t) and mesoderm signal M(t).
@@ -136,6 +171,8 @@ def optimization_objective(
     if not results:
         return _invalid_fitness()
 
+    ema_dict = _require_exponential_moving_average(ema_dict)
+
     t_sim = results.get("time", np.array([]))
     L_sim = results.get("tissue_size", np.array([]))
     M_sim = results.get("mesoderm_fraction", np.array([]))
@@ -145,16 +182,18 @@ def optimization_objective(
 
     try:
         if tissue_std is None or mesoderm_std is None:
-            tissue_std, mesoderm_std = calculate_normalization_scales(experimental_data)
+            tissue_std, mesoderm_std = _calculate_normalization_scales(
+                experimental_data
+            )
 
-        L_sim_on_exp = interpolate_simulation_to_experimental_timepoints(
+        L_sim_on_exp = _interpolate_simulation_to_experimental_timepoints(
             t_sim, L_sim, experimental_data.time, minutes_per_generation
         )
-        M_sim_on_exp = interpolate_simulation_to_experimental_timepoints(
+        M_sim_on_exp = _interpolate_simulation_to_experimental_timepoints(
             t_sim, M_sim, experimental_data.time, minutes_per_generation
         )
 
-        # Get corresponding reference values
+        # Get reference values
         sim_time_minutes = t_sim * minutes_per_generation
         if not _check_simulation_length(sim_time_minutes, experimental_data):
             return _invalid_fitness()
@@ -163,31 +202,21 @@ def optimization_objective(
         exp_tissue_valid = experimental_data.tissue_size[valid_exp_mask]
         exp_meso_valid = experimental_data.mesoderm_fraction[valid_exp_mask]
 
-        # # Adjust mesoderm scale
-        # M_sim_scaled, scale_factor = least_squares_rescale(M_sim_on_exp, exp_meso_valid)
-        # print(
-        #     f"Rescaled mesoderm signal by scale_factor {scale_factor:.4f} to match reference"
-        # )
-
         # Loss
-        l2_tissue = calculate_trajectory_mismatch(
+        l2_tissue = _calculate_trajectory_mismatch(
             sim_interpolated=L_sim_on_exp,
             exp_values=exp_tissue_valid,
             normalization_scale=tissue_std,
         )
-        l2_meso = calculate_trajectory_mismatch(
+        l2_meso = _calculate_trajectory_mismatch(
             sim_interpolated=M_sim_on_exp,
             exp_values=exp_meso_valid,
             normalization_scale=mesoderm_std,
         )
-        # l2_meso = calculate_trajectory_mismatch(
-        #     sim_interpolated=M_sim_scaled,
-        #     exp_values=exp_meso_valid,
-        #     normalization_scale=mesoderm_std,
-        # )
 
-        return l2_tissue + l2_meso
-        # return l2_tissue
+        losses = {"tissue": l2_tissue, "mesoderm": l2_meso}
+        weights = _compute_dynamic_weights(losses=losses, ema_dict=ema_dict)  # type: ignore
+        return weights["tissue"] * l2_tissue + weights["mesoderm"] * l2_meso
 
     except ValueError as e:
         raise ValueError(

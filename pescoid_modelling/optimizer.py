@@ -3,7 +3,7 @@
 from dataclasses import asdict
 import multiprocessing as mp
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, MutableMapping, Sequence, Tuple, Union
 
 import cma  # type: ignore
 from matplotlib import pyplot as plt
@@ -17,18 +17,57 @@ from pescoid_modelling.objective import ReferenceTrajectories
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import _ORDER
 from pescoid_modelling.utils.config import SimulationParams
+from pescoid_modelling.utils.helpers import get_physical_cores
 from pescoid_modelling.utils.parameter_scaler import ParamScaler
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
+GLOBAL_EMA: MutableMapping[str, float] | None = None
 
-def get_physical_cores() -> int:
-    """Return physical core count, subtracted by one to account for the main
-    process / overhead.
+
+def _init_worker(shared_ema_proxy: MutableMapping[str, float]) -> None:
+    """Exectued once in every work process to make the manager-dict available as the
+    module-level global_ema. This allows the objective function to access the shared
+    exponential moving average without passing it explicitly.
     """
-    cores = psutil.cpu_count(logical=False)
-    if cores is None or cores <= 1:
-        return 1
-    return cores - 1
+    global GLOBAL_EMA
+    GLOBAL_EMA = shared_ema_proxy
+
+
+def vector_to_params(
+    v_norm: List[float], base: SimulationParams, scaler: ParamScaler
+) -> SimulationParams:
+    """Convert normalised vector to physical SimulationParams."""
+    v_phys = scaler.to_physical(v_norm)
+    kwargs = asdict(base)
+    for k, val in zip(_ORDER, v_phys):
+        kwargs[k] = float(val)
+    return SimulationParams(**kwargs)
+
+
+def _worker_eval(
+    x: List[float],
+    base_params: SimulationParams,
+    work_dir: Path,
+    experimental: ReferenceTrajectories,
+    scaler: ParamScaler,
+    obj_fn: Callable[..., float],
+) -> float:
+    """Executed in the pool; has no reference to the CMAOptimizer
+    instance to avoid pickling issues.
+    """
+    p = vector_to_params(x, base_params, scaler)
+    job_dir = work_dir / f"sim_{hash(tuple(x)):x}"
+    sim = PescoidSimulator(p, job_dir)
+    try:
+        sim.run()
+        res = sim.results
+        if res.get("aborted", [False])[0]:
+            raise RuntimeError("Invalid simulation results")
+
+        return obj_fn(res, experimental, ema_dict=GLOBAL_EMA)
+    except Exception as exc:
+        print(f"Simulation failure ({exc}), penalizing...")
+        return _invalid_fitness()
 
 
 class CMAOptimizer:
@@ -82,10 +121,13 @@ class CMAOptimizer:
         self.objective_function = objective_function
         self.experimental_data = experimental_data
         self.work_dir = work_dir
-        self.n_workers = get_physical_cores()
         self._sigma0 = sigma
         self._x0 = x0
         self._n_restarts = n_restarts
+
+        self.n_workers = get_physical_cores()
+        self._mp_manager = mp.Manager()
+        self.shared_ema: MutableMapping[str, float] = self._mp_manager.dict()  # type: ignore
 
         opts: Dict[str, Any] = {
             "verb_disp": 1,
@@ -119,7 +161,7 @@ class CMAOptimizer:
           Objective function value (lower is better)
         """
         # Unique hash for caching
-        p = self.vector_to_params(x, self.base_params)
+        p = vector_to_params(x, self.base_params, self.scaler)
         param_hash = hash(tuple(x))
         job_dir = self.work_dir / f"sim_{param_hash:x}"
 
@@ -130,7 +172,9 @@ class CMAOptimizer:
             if results.get("aborted", [False])[0]:
                 raise RuntimeError("Invalid simulation results")
 
-            return self.objective_function(results, self.experimental_data)
+            return self.objective_function(
+                results, self.experimental_data, ema_dict=GLOBAL_EMA
+            )
 
         except Exception as exc:
             print(f"Simulation failure ({exc}), penalizing...")
@@ -152,7 +196,11 @@ class CMAOptimizer:
         restarts_left = self._n_restarts
         iteration = 0
 
-        with mp.Pool(processes=self.n_workers) as pool:
+        with mp.Pool(
+            processes=self.n_workers,
+            initializer=_init_worker,
+            initargs=(self.shared_ema,),
+        ) as pool:
             while True:
                 logger = cma.CMADataLogger(str(self.work_dir / f"cma_restart.log"))
 
@@ -161,7 +209,20 @@ class CMAOptimizer:
                     X = self.es.ask()
                     fitness = list(
                         tqdm(
-                            pool.imap(self._evaluate_individual, X),
+                            pool.starmap(
+                                _worker_eval,
+                                [
+                                    (
+                                        x,
+                                        self.base_params,
+                                        self.work_dir,
+                                        self.experimental_data,
+                                        self.scaler,
+                                        self.objective_function,
+                                    )
+                                    for x in X
+                                ],
+                            ),
                             total=len(X),
                             desc=f"Gen {iteration} (rst {restarts_left})",
                         )
@@ -183,14 +244,13 @@ class CMAOptimizer:
                 self._x0 = self.es.result.xbest
                 self._sigma0 = self.es.sigma
                 new_opts = dict(self._es_opts)
-                # new_opts["popsize"] = int(self.es.popsize * 2)
 
                 self.es = cma.CMAEvolutionStrategy(self._x0, self._sigma0, new_opts)
                 logger = cma.CMADataLogger(str(self.work_dir / "cma_optimization_data"))
 
         self._generate_optimization_plots(logger)
         best_x_norm = self.es.result.xbest
-        return self.vector_to_params(best_x_norm, self.base_params)
+        return vector_to_params(best_x_norm, self.base_params, self.scaler)
 
     def _generate_optimization_plots(self, logger: cma.CMADataLogger) -> None:
         """Generate and save optimization plots."""
@@ -204,13 +264,3 @@ class CMAOptimizer:
         plt.close("all")
 
         print(f"Optimization plots saved to {self.work_dir}")
-
-    def vector_to_params(
-        self, v_norm: List[float], base: SimulationParams
-    ) -> SimulationParams:
-        """Convert normalised vector to physical SimulationParams."""
-        v_phys = self.scaler.to_physical(v_norm)
-        kwargs = asdict(base)
-        for k, val in zip(_ORDER, v_phys):
-            kwargs[k] = float(val)
-        return SimulationParams(**kwargs)
