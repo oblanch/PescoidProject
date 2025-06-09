@@ -579,9 +579,11 @@ class PescoidSimulator:
         return edge_x, edge_idx
 
     def _compute_mesoderm_fraction(
-        self, m_vals: np.ndarray, edge_idx: float | None
+        self, m_vals: np.ndarray, edge_idx: float | None, smoothing_factor: float = 0.15
     ) -> float:
-        """Calculate the fraction of tissue that is expressing mesoderm."""
+        """Calculate the fraction of tissue that is expressing mesoderm using a
+        smooth activation function.
+        """
         if edge_idx is None:
             return 0.0
 
@@ -589,7 +591,9 @@ class PescoidSimulator:
         if tissue_mesoderm.size == 0:
             return 0.0
 
-        return (tissue_mesoderm > 0).mean()
+        smooth_activation = 1.0 / (1.0 + np.exp(-tissue_mesoderm / smoothing_factor))
+        return smooth_activation.mean()
+        # return (tissue_mesoderm > 0).mean()
 
     def _compute_mesoderm_average(self, m_vals: np.ndarray, edge_idx: int) -> float:
         """Get all-tissue mesoderm average."""
