@@ -30,6 +30,7 @@ def make_reference_timeseries(
     frac_key: str = "mean_fraction",
     window_length: int = 7,
     polyorder: int = 1,
+    outfile: str = "reference_timeseries.npz",
 ) -> None:
     """Create a reference timeseries from experimental data and save as .npz for
     use. Smooths the trajectories, finds the max value, and populates the rest
@@ -47,7 +48,7 @@ def make_reference_timeseries(
     mesoderm_fraction[max_idx:] = meso_sm[max_idx]
 
     np.savez(
-        "reference_timeseries.npz",
+        outfile,
         time=time,
         tissue_size=radius_sm,
         mesoderm_fraction=mesoderm_fraction,

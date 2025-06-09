@@ -6,7 +6,7 @@ simulation:
   diffusivity: 8.980959167540726e-05
   m_diffusivity: 1e-3
   tau_m: 5.96945686472471
-  flow: 0.14313330708373756
+  flow: 0.3
   activity: 0.8177242457000748
   beta: 0.6359440258892959
   gamma: 0.19664898263383435
