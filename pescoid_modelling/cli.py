@@ -12,6 +12,7 @@ from pescoid_modelling.optimizer import CMAOptimizer
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import _ORDER
 from pescoid_modelling.utils.config import load_config
+from pescoid_modelling.utils.parsers import build_parser
 from pescoid_modelling.visualization.plot_trajectories import (
     visualize_simulation_results,
 )
@@ -55,22 +56,6 @@ def _validate_experimental_data(experimental_npz: str) -> None:
         raise ValueError(f"Cannot read experimental data file {experimental_npz}: {e}")
 
 
-def _add_common_args(parser: argparse.ArgumentParser) -> None:
-    """Attach shared arguments to the given parser."""
-    parser.add_argument(
-        "--config",
-        type=str,
-        required=True,
-        help="Path to the YAML/JSON configuration file.",
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="results",
-        help="Directory in which to write results (will be created).",
-    )
-
-
 def _prepare_output_dir(output_dir: str, config_file_dir: str) -> Path:
     """Prepare the output directory for results. Creates a subdirectory based on
     the prefix of the yaml.
@@ -101,7 +86,11 @@ def _run_simulation(args: argparse.Namespace) -> None:
 
     # Initialize and run simulator
     LOGGER.info(f"Running pescoid simulation --> {work_dir}")
-    simulator = PescoidSimulator(parameters=sim_params, work_dir=work_dir)
+    simulator = PescoidSimulator(
+        parameters=sim_params,
+        work_dir=work_dir,
+        corrected_pressure=args.corrected_pressure,
+    )
     simulator.run()
     simulator.save(out_npz)
     LOGGER.info(f"Simulation results saved --> {out_npz}")
@@ -176,79 +165,13 @@ def _post_simulation_visualization(args: argparse.Namespace) -> None:
     LOGGER.info("Generated post-simulation trajectories.")
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construct the root parser with sub-commands."""
-    parser = argparse.ArgumentParser(
-        prog="pescoid",
-        description="CLI for pescoid simulations and optimization.",
-    )
-    sub = parser.add_subparsers(
-        title="sub-commands",
-        dest="command",
-        metavar="{simulate, optimize, plot}",
-        required=True,
-    )
-    _build_standard_parser(
-        sub, "simulate", "Run a single pescoid simulation.", _run_simulation
-    )
-    _build_standard_parser(
-        sub, "optimize", "Run CMA-ES to optimize PDE parameters.", _run_optimization
-    )
-    _build_visualization_parser(sub)
-    return parser
-
-
-def _build_standard_parser(
-    subparsers: argparse._SubParsersAction, name: str, help_text: str, func
-) -> None:
-    """Add a standard sub-command that only needs common args."""
-    parser = subparsers.add_parser(name, help=help_text)
-    _add_common_args(parser)
-    parser.add_argument(
-        "--experimental_npz",
-        type=str,
-        default="data/reference_timeseries.npz",
-        help="Experimental trajectories saved via np.savez(...). "
-        "Should include arrays for time scale, normalized area, and mesoderm fraction.",
-    )
-    parser.add_argument(
-        "--generate_figures",
-        action="store_true",
-        help="Generate visualization plots after run completes.",
-    )
-    parser.set_defaults(func=func)
-
-
-def _build_visualization_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Add the visualization sub-command to the parser."""
-    plot_parser = subparsers.add_parser(
-        "plot", help="Plot trajectories from existing .npz files."
-    )
-    plot_parser.add_argument(
-        "--simulation_npz",
-        required=True,
-        type=str,
-        help="Path to simulation_results.npz",
-    )
-    plot_parser.add_argument(
-        "--experimental_npz",
-        type=str,
-        default="data/reference_timeseries.npz",
-        help="Experimental trajectories saved via np.savez(...). "
-        "Should include arrays for time scale, normalized area, and mesoderm fraction.",
-    )
-    plot_parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="results",
-        help="Directory in which to write results (will be created).",
-    )
-    plot_parser.set_defaults(func=_post_simulation_visualization)
-
-
 def main() -> None:
     """Program entry point."""
-    parser = build_parser()
+    parser = build_parser(
+        simulate=_run_simulation,
+        optimize=_run_optimization,
+        plot=_post_simulation_visualization,
+    )
     args = parser.parse_args()
 
     try:

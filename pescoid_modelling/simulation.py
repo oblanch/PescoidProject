@@ -76,10 +76,13 @@ class PescoidSimulator:
         self,
         parameters: SimulationParams,
         work_dir: str | Path,
+        corrected_pressure: bool = False,
     ) -> None:
         """Initialize the simulator class."""
         self.params = parameters
+        self.corrected_pressure = corrected_pressure
         self.aborted: bool = False
+
         self.work_dir = Path(work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -275,12 +278,21 @@ class PescoidSimulator:
             c_prev=c_prev,
             test_m=test_m,
         )
-        F_u = self._formulate_velocity_equation(
-            u=u,
-            rho_prev=rho_prev,  # type: ignore
-            m_prev=m_prev,
-            test_u=test_u,
-        )
+
+        if self.corrected_pressure:
+            F_u = self._formulate_pressure_corrected_velocity_equation(
+                u=u,
+                rho_prev=rho_prev,  # type: ignore
+                m_prev=m_prev,
+                test_u=test_u,
+            )
+        else:
+            F_u = self._formulate_velocity_equation(
+                u=u,
+                rho_prev=rho_prev,  # type: ignore
+                m_prev=m_prev,
+                test_u=test_u,
+            )
 
         F_c = self._formulate_morphogen_equation(
             c=c,
@@ -397,6 +409,71 @@ class PescoidSimulator:
             + advection
         )
 
+    def _calculate_active_stress_field(
+        self, rho_prev: Function, m_prev: Function
+    ) -> Function:
+        """Calculate the active stress field:
+
+        σᵃ = ρ * [A * f(ρ,m) - 1]
+        where f(ρ,m) = [ρ/(1 + α*ρ²)] * [1 + β * sigmoid(m)]
+        """
+        # ρ/(1 + α*ρ²)
+        density_saturation = rho_prev / (
+            self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev  # type: ignore
+        )
+
+        # (tanh((m - m₀)/m₀) + 1)/2
+        mesoderm_sigmoid = (
+            tanh((m_prev - self._m_sensitivity_const) / self._m_sensitivity_const)  # type: ignore
+            + self._one_const
+        ) / Constant(2.0)
+
+        # 1 + β * sigmoid(m)
+        mesoderm_enhancement = self._one_const + self._beta_const * mesoderm_sigmoid
+
+        # A * [ρ/(1 + α*ρ²)] * [1 + β * sigmoid(m)]
+        active_stress_factor = (
+            self._activity_const * density_saturation * mesoderm_enhancement
+        )
+
+        # σᵃ = ρ * (A * f(ρ,m) - 1)
+        active_stress = rho_prev * (active_stress_factor - self._one_const)
+
+        return active_stress
+
+    def _calculate_boundary_velocity_term_from_state(self) -> Constant:
+        """Calculate the boundary velocity term vᵣ(R)/R using the previous
+        state.
+        """
+        _, _, u_fn, _ = self._previous_state.split()
+
+        # Domain characteristics
+        mesh_coords = self._mesh.coordinates()
+        domain_half_length = (mesh_coords.max() - mesh_coords.min()) / 2.0
+
+        # Mesh vertex values for velocity
+        u_vals = u_fn.compute_vertex_values(self._mesh)
+        avg_velocity = float(np.mean(u_vals))
+
+        return Constant(avg_velocity / domain_half_length)
+
+    def _calculate_pressure(
+        self, u: Function, active_stress: Function, boundary_term_const: Constant
+    ) -> Function:
+        """Calculate pressure using the relation:
+
+        P = σᵃ - η * (vᵣ(R)/R - ∇ · v)
+        """
+        # ∇ · v = ∂u/∂x (in 1D)
+        velocity_divergence = u.dx(0)  # type: ignore
+
+        # P = σᵃ - η * (vᵣ(R)/R - ∇ · v)
+        pressure = active_stress - self._eta_const * (
+            boundary_term_const - velocity_divergence
+        )
+
+        return pressure
+
     def _formulate_active_stress_feedback(
         self,
         rho_prev: Function,
@@ -506,6 +583,37 @@ class PescoidSimulator:
 
         # Complete form
         return friction + viscosity - force
+
+    def _formulate_pressure_corrected_velocity_equation(
+        self,
+        u: Function,
+        rho_prev: Function,
+        m_prev: Function,
+        test_u: Function,
+    ) -> Form:
+        """Formulate the variational form for tissue velocity
+        (pressure-corrected active-polar fluid model):
+
+        η * ∂²u/∂x² + ∂(σᵃ − P)/∂x = 0
+        """
+        # σᵃ
+        active_stress = self._calculate_active_stress_field(rho_prev, m_prev)
+
+        # (σᵃ − P)/η = v_r(R)/R − ∂u/∂x
+        boundary_term_const = self._calculate_boundary_velocity_term_from_state()
+        pressure = self._calculate_pressure(u, active_stress, boundary_term_const)
+
+        # (σᵃ - P)
+        corrected_stress = active_stress - pressure  # type: ignore
+
+        # η * ∂u/∂x * ∂test_u/∂x
+        viscous_term = self._eta_const * u.dx(0) * test_u.dx(0) * dx  # type: ignore
+
+        # −(σᵃ − P) * ∂test_u/∂x
+        stress_term = -corrected_stress * test_u.dx(0) * dx  # type: ignore
+
+        # Complete form
+        return viscous_term + stress_term
 
     def _formulate_morphogen_equation(
         self,
