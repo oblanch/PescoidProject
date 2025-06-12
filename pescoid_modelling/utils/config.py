@@ -55,6 +55,14 @@ class SimulationParams:
         Saturation of active stress at high density
       m_sensitivity:
         Sensitivity of the increase in contractility when cells become mesoderm
+      c_diffusivity:
+        D_c - morphogen diffusion coefficient
+      morphogen_decay:
+        k - morphogen decay/consumption rate
+      gaussian_width:
+        σ - width of Gaussian source
+      morphogen_feedback:
+        R - morphogen sensitivity for chemical feedback
       feedback_mode:
         Mode of mechanical feedback, either "active_stress" or
         "strain_rate".
@@ -76,6 +84,10 @@ class SimulationParams:
     rho_sensitivity: float = 0.0
     m_sensitivity: float = 0.09628726199197271
     feedback_mode: str = "active_stress"
+    c_diffusivity: float = 5e-4
+    morphogen_decay: float = 0.05
+    gaussian_width: float = 0.2
+    morphogen_feedback: float = 0.0
 
 
 @dataclass(frozen=True)

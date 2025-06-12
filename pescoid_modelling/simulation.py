@@ -94,7 +94,7 @@ class PescoidSimulator:
     def initial_radius(self) -> float:
         """Leading-edge radius of the *initial* density profile."""
         if self._initial_radius is None:
-            rho_fn, _, _ = self._previous_state.split()
+            rho_fn, _, _, _ = self._previous_state.split()
             rho_vals = rho_fn.compute_vertex_values(self._mesh)
             x_coords = self._mesh.coordinates().flatten()
 
@@ -142,6 +142,10 @@ class PescoidSimulator:
         self._gamma_const = Constant(self.params.gamma)
         self._rho_sensitivity_const = Constant(self.params.rho_sensitivity)
         self._m_sensitivity_const = Constant(self.params.m_sensitivity)
+        self._c_diffusivity_const = Constant(self.params.c_diffusivity)
+        self._morphogen_decay_const = Constant(self.params.morphogen_decay)
+        self._gaussian_width_const = Constant(self.params.gaussian_width)
+        self._morphogen_feedback_const = Constant(self.params.morphogen_feedback)
 
         # Imported constants
         self._rho_gate_center_const = Constant(RHO_GATE_CENTER)
@@ -203,20 +207,23 @@ class PescoidSimulator:
         element1 = FiniteElement("CG", self._mesh.ufl_cell(), 1)
         element2 = FiniteElement("CG", self._mesh.ufl_cell(), 1)
         element3 = FiniteElement("CG", self._mesh.ufl_cell(), 1)
-        mixed_element = MixedElement([element1, element2, element3])
+        element4 = FiniteElement("CG", self._mesh.ufl_cell(), 1)
+        mixed_element = MixedElement([element1, element2, element3, element4])
 
         self._mixed_function_space = FunctionSpace(self._mesh, mixed_element)
         self._previous_state = Function(self._mixed_function_space)
         self._current_state = Function(self._mixed_function_space)
 
     def _set_initial_conditions(self) -> None:
-        """Set initial conditions for density, mesoderm, and velocity."""
+        """Set initial conditions for density, mesoderm, velocity, and
+        morphogen.
+        """
         if self._previous_state is None:
             raise RuntimeError(
                 "Function spaces must be set up before setting initial conditions."
             )
 
-        # Define initial condition expressions
+        # Initial conditions
         density_expression = (
             f"({INITIAL_AMPLITUDE}/2) * ((-tanh((pow(x[0], 2) - {LENGTH_SCALE})/{TRANSITION_WIDTH})) + 1)"
             "* pow(0.5, x[0]*x[0])"
@@ -224,6 +231,7 @@ class PescoidSimulator:
         density_initial_condition = Expression(density_expression, degree=2)
         mesoderm_initial_condition = Expression("-1.0", degree=1)
         velocity_initial_condition = Expression("0.0", degree=1)
+        morphogen_initial_condition = Expression("0.0", degree=1)
 
         # Create individual function spaces
         scalar_space = FunctionSpace(self._mesh, "CG", 1)
@@ -232,11 +240,13 @@ class PescoidSimulator:
         density_func = project(density_initial_condition, scalar_space)
         mesoderm_func = project(mesoderm_initial_condition, scalar_space)
         velocity_func = project(velocity_initial_condition, scalar_space)
+        morphogen_func = project(morphogen_initial_condition, scalar_space)
 
         # Assign to mixed space
         assign(self._previous_state.sub(0), density_func)
         assign(self._previous_state.sub(1), mesoderm_func)
         assign(self._previous_state.sub(2), velocity_func)
+        assign(self._previous_state.sub(3), morphogen_func)
 
     def _build_variational_forms(self) -> None:
         """Build the variational forms for the PDEs."""
@@ -247,11 +257,10 @@ class PescoidSimulator:
 
     def _formulate_variational_problem(self) -> Tuple[Expression, Expression]:
         """Build the variational forms for the PDEs."""
-        rho_prev, m_prev, u_prev = split(self._previous_state)  # type: ignore
-        rho, m, u = TrialFunctions(self._mixed_function_space)  # type: ignore
-        test_rho, test_m, test_u = TestFunctions(self._mixed_function_space)  # type: ignore
+        rho_prev, m_prev, u_prev, c_prev = split(self._previous_state)  # type: ignore
+        rho, m, u, c = TrialFunctions(self._mixed_function_space)  # type: ignore
+        test_rho, test_m, test_u, test_c = TestFunctions(self._mixed_function_space)  # type: ignore
 
-        # Formulate residuals
         F_rho = self._formulate_density_equation(
             rho=rho,  # type: ignore
             rho_prev=rho_prev,  # type: ignore
@@ -263,6 +272,7 @@ class PescoidSimulator:
             m_prev=m_prev,
             rho_prev=rho_prev,  # type: ignore
             u_prev=u_prev,
+            c_prev=c_prev,
             test_m=test_m,
         )
         F_u = self._formulate_velocity_equation(
@@ -272,7 +282,14 @@ class PescoidSimulator:
             test_u=test_u,
         )
 
-        total_form = F_rho + F_m + F_u
+        F_c = self._formulate_morphogen_equation(
+            c=c,
+            c_prev=c_prev,
+            u_prev=u_prev,
+            test_c=test_c,
+        )
+
+        total_form = F_rho + F_m + F_u + F_c
         return lhs(total_form), rhs(total_form)  # type: ignore
 
     def _formulate_density_equation(
@@ -285,16 +302,24 @@ class PescoidSimulator:
         """Formulate the variational form for the density equation (tissue
         growth). Equation is of the following form:
 
-            d rho / dt = Delta * d^2 rho / dx^2 - Flow * u_prev * d rho_prev /
-            dx + rho_prev * (1 - rho_prev)
+        ∂ρ/∂t = δ * ∂²ρ/∂x²
+            + F * u * ∂ρ/∂x
+            - ρ * (1 - ρ)
         """
+        # ∂ρ/∂t
         temporal = (rho - rho_prev) * test_rho * dx  # type: ignore
+
+        # +δ * ∂ρ/∂x * ∂test_rho/∂x
         diffusion = (
             self._dt_const * self._diffusivity_const * rho.dx(0) * test_rho.dx(0) * dx  # type: ignore
         )
+
+        # -F * u * ρ_prev * ∂test_rho/∂x
         advection = (
             -self._dt_const * self._flow_const * u_prev * rho_prev * test_rho.dx(0) * dx  # type: ignore
         )
+
+        # -ρ * (1 - ρ)
         reaction = (
             -self._dt_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
         )
@@ -308,20 +333,24 @@ class PescoidSimulator:
         m_prev: Function,
         rho_prev: Function,
         u_prev: Function,
+        c_prev: Function,
         test_m: Function,
     ) -> Form:
         """Formulate the variational form for mesoderm differentiation. The
         complete equation is:
 
-        d m / dt = (1/tau_m) * m_prev * (m_prev + 1) * (1 - m_prev)
-        + (1/tau_m) * R * [feedback term]
-        + Delta * d^2 m / dx^2
-        - Flow * u_prev * d m_prev / dx
+        ∂m/∂t = - (1/τₘ) * m * (m + 1) * (1 - m)
+            - (1/τₘ) * R * [mechanical_feedback_term]
+            - (1/τₘ) * R * c
+            + Dₘ * ∂²m/∂x²
+            + F * u * ∂m/∂x
         """
         feedback_mode = getattr(self.params, "feedback_mode", "strain_rate")
 
-        # Build term by term
+        # ∂m/∂t
         temporal = (m - m_prev) * test_m * dx  # type: ignore
+
+        # -(1/τₘ) * m * (m + 1) * (1 - m)
         common_decay = (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
@@ -332,16 +361,41 @@ class PescoidSimulator:
             * dx
         )
 
+        # -(1/τₘ) * R * [mechanical cue]
         if feedback_mode == "strain_rate":
-            feedback = self._formulate_strain_rate_feedback(u_prev, rho_prev, test_m)
+            mechanical_feedback = self._formulate_strain_rate_feedback(
+                u_prev, rho_prev, test_m
+            )
         else:  # active_stress
-            feedback = self._formulate_active_stress_feedback(rho_prev, m_prev, test_m)
+            mechanical_feedback = self._formulate_active_stress_feedback(
+                rho_prev, m_prev, test_m
+            )
 
+        # -(1/τₘ) * R_morphogen * c
+        chemical_feedback = (
+            self._dt_const
+            * (self._one_const / self._tau_m_const)  # type: ignore
+            * self._morphogen_feedback_const
+            * c_prev
+            * test_m
+            * dx
+        )
+
+        # +Dₘ * ∂m/∂x * ∂test_m/∂x
         diffusion = self._dt_const * self._m_diffusivity_const * m.dx(0) * test_m.dx(0) * dx  # type: ignore
+
+        # +F * u * ∂m/∂x * test_m
         advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * test_m * dx  # type: ignore
 
-        # Complete residual
-        return temporal - common_decay - feedback + diffusion + advection
+        # Complete form
+        return (
+            temporal
+            - common_decay
+            - mechanical_feedback
+            - chemical_feedback
+            + diffusion
+            + advection
+        )
 
     def _formulate_active_stress_feedback(
         self,
@@ -349,43 +403,34 @@ class PescoidSimulator:
         m_prev: Function,
         test_m: Function,
     ) -> Form:
-        """Formulate the active-stress feedback term for mesoderm differentiation:
+        """Formulate the active-stress feedback term for mesoderm
+        differentiation:
 
-        (1/tau_m) * R * (sigma_a - Sigma_c)
+        Mechanical cue based on active stress:
+          (1/τₘ) * R * (σₐ - σc)
 
-        where
-
-        sigma_a = density_prev * Activity  # stress_term
-        * (density_prev/(1 + self._rho_sensitivity_const * density_prev^2))
-        * (1 + Beta * (
-            (tanh((mesoderm_prev - self._m_sensitivity_const)/self._m_sensitivity_const) + 1)/2)
-        )
+        where σₐ = ρ * A * [ρ/(1 + αρ²)] * [1 + β * sigmoid(m)]
         """
-        # active-stress cue, sigma_a
-        cue = (
-            rho_prev  # type: ignore
-            * self._activity_const
-            * (
-                rho_prev
-                / (self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev)  # type: ignore
-            )
-            * (
-                self._one_const
-                + self._beta_const
-                * (
-                    (
-                        tanh(
-                            (m_prev - self._m_sensitivity_const)  # type: ignore
-                            / self._m_sensitivity_const
-                        )
-                        + self._one_const
-                    )
-                    / Constant(2.0)
-                )
-            )
+        # ρ/(1 + α*ρ²)
+        density_saturation = rho_prev / (
+            self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev  # type: ignore
         )
 
-        # full feedback term
+        # (tanh((m - m₀)/m₀) + 1)/2
+        mesoderm_sigmoid = (
+            tanh((m_prev - self._m_sensitivity_const) / self._m_sensitivity_const)  # type: ignore
+            + self._one_const
+        ) / Constant(2.0)
+
+        # 1 + β * sigmoid(m)
+        mesoderm_enhancement = self._one_const + self._beta_const * mesoderm_sigmoid
+
+        # ρ * A * density_saturation * (1 + β * sigmoid(m))
+        cue = (
+            rho_prev * self._activity_const * density_saturation * mesoderm_enhancement  # type: ignore
+        )
+
+        # (1/τₘ) * R * (σₐ - σc)
         return (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
@@ -404,17 +449,22 @@ class PescoidSimulator:
         """Formulate the active stress feedback term for mesoderm
         differentiation:
 
-        (1/τₘ) · R · [ (-η ∂x v_prev) - sigma_c ]
+        Mechanical cue based on strain rate:
+        (1/τₘ) * R * (-η * ∂u/∂x - σc)
 
-        R remains positive and the sign flip is built into the cue.
+        where the strain rate is gated by tissue density using rho_gate
+        function.
         """
+        # ρ_gate = (tanh((ρ - ρ₀)/w) + 1)/2
         rho_gate = self._half_const * (
             tanh((rho_prev - self._rho_gate_center_const) / self._rho_gate_width_const)  # type: ignore
             + self._one_const
         )
 
+        # -η * ρ_gate * ∂u/∂x
         cue = -rho_gate * u_prev.dx(0)  # type: ignore
 
+        # (1/τₘ) * R * (cue - σc)
         return (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
@@ -434,63 +484,141 @@ class PescoidSimulator:
         """Formulate the variational form for tissue velocity (force balance
         equation):
 
-        rho_gate * Gamma * u - rho_gate * d^2 u / dx^2 = div(active_stress)
+        rho_gate * Gamma * u + rho_gate * ∂²u/∂x² = ∂σ/∂x
         """
+        # ρ_gate = (tanh((ρ - ρ₀)/w) + 1)/2
         rho_gate = self._half_const * (
             tanh((rho_prev - self._rho_gate_center_const) / self._rho_gate_width_const)  # type: ignore
             + self._one_const
         )
 
-        # Stress divergence term
+        # ∂σ/∂x
         active_stress_div = self._calculate_stress_divergence(rho_prev, m_prev)
 
-        # Build equation terms
+        # ρ_gate * Γ * u
         friction = rho_gate * self._gamma_const * u * test_u * dx
+
+        # ρ_gate * ∂u/∂x * ∂test_u/∂x
         viscosity = rho_gate * u.dx(0) * test_u.dx(0) * dx  # type: ignore
+
+        # -∂σ/∂x * test_u
         force = active_stress_div * test_u * dx  # type: ignore
 
         # Complete form
         return friction + viscosity - force
+
+    def _formulate_morphogen_equation(
+        self,
+        c: Function,
+        c_prev: Function,
+        u_prev: Function,
+        test_c: Function,
+    ) -> Form:
+        """Formulate the variational form for morphogen concentration.
+
+        Equation: ∂c/∂t + ∂x(vc) = s(x) - kc + Dc ∂²c/∂x²
+        """
+        # s(x) = (1/(σ√(2π))) * exp(-x²/(2σ²))
+        sigma = float(self.params.gaussian_width)
+        normalization = 1.0 / (sigma * np.sqrt(2 * np.pi))
+        gaussian_expr = f"{normalization} * exp(-pow(x[0], 2) / (2 * pow({sigma}, 2)))"
+        gaussian_source = Expression(gaussian_expr, degree=2)
+
+        # ∂c/∂t
+        temporal = (c - c_prev) * test_c * dx  # type: ignore
+
+        # -v∂c/∂x
+        advec_convective = -self._dt_const * u_prev * c_prev.dx(0) * test_c * dx  # type: ignore
+
+        # -c∂v/∂x
+        advec_divergence = -self._dt_const * c_prev * u_prev.dx(0) * test_c * dx  # type: ignore
+
+        # -∂x(vc) = -(v∂c/∂x + c∂v/∂x)
+        advection = advec_convective + advec_divergence
+
+        # +Dc * ∂²c/∂x²
+        diffusion = (
+            self._dt_const * self._c_diffusivity_const * c.dx(0) * test_c.dx(0) * dx  # type: ignore
+        )
+
+        # -k * c
+        decay = -self._dt_const * self._morphogen_decay_const * c_prev * test_c * dx  # type: ignore
+
+        # +s(x)
+        source = self._dt_const * gaussian_source * test_c * dx  # type: ignore
+
+        return temporal + advection + diffusion + decay + source
 
     def _calculate_stress_divergence(
         self, rho_prev: Function, m_prev: Function
     ) -> Function:
         """Calculate the divergence of the active stress tensor:
 
-        d/dx [density_prev
-            * (Activity
-            * (density_prev/(1 + self._rho_sensitivity_const * density_prev^2))
-            * (
-                1
-                + Beta
-                * ((tanh((mesoderm_prev - self._m_sensitivity_const)/self._m_sensitivity_const) + 1)/2)
-            ) - 1)]
+        ∂σ/∂x where σ = ρ * [A * f(ρ,m) - 1]
         """
-        active_stress = rho_prev * (
-            self._activity_const  # type: ignore
-            * (
-                rho_prev
-                / (self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev)  # type: ignore
-            )
-            * (
-                self._one_const
-                + self._beta_const
-                * (
-                    (
-                        tanh(
-                            (m_prev - self._m_sensitivity_const)  # type: ignore
-                            / self._m_sensitivity_const
-                        )
-                        + self._one_const
-                    )
-                    / Constant(2.0)
-                )
-            )
-            - self._one_const
+        # ρ/(1 + α*ρ²)
+        density_saturation = rho_prev / (
+            self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev  # type: ignore
         )
 
-        # divergence
+        # sigmoid(m) = (tanh((m - m₀)/m₀) + 1)/2
+        mesoderm_sigmoid = (
+            tanh((m_prev - self._m_sensitivity_const) / self._m_sensitivity_const)  # type: ignore
+            + self._one_const
+        ) / Constant(2.0)
+
+        # 1 + β * sigmoid(m)
+        mesoderm_enhancement = self._one_const + self._beta_const * mesoderm_sigmoid
+
+        # A * [ρ/(1 + α*ρ²)] * [1 + β * sigmoid(m)]
+        active_stress_factor = (
+            self._activity_const * density_saturation * mesoderm_enhancement
+        )
+
+        # σ = ρ * (A * f(ρ,m) - 1)
+        active_stress = rho_prev * (active_stress_factor - self._one_const)
+
+        # ∂σ/∂x
         return active_stress.dx(0)
+
+    def _compute_stress(self, rho_fn: Function, m_fn: Function) -> np.ndarray:
+        """Compute stress based on the current state.
+
+        σ = ρ * A * [ρ/(1 + α*ρ²)] * [1 + β * sigmoid(m)]
+        """
+        scalar_space = FunctionSpace(self._mesh, "CG", 1)
+        rho_projected = project(rho_fn, scalar_space)
+        m_projected = project(m_fn, scalar_space)
+
+        rho_vals = rho_projected.vector().get_local().astype(float)
+        m_vals = m_projected.vector().get_local().astype(float)
+
+        # ρ/(1 + α*ρ²)
+        density_saturation = rho_vals / (
+            1.0 + float(self._rho_sensitivity_const) * rho_vals * rho_vals
+        )
+
+        # sigmoid(m) = (tanh((m - m₀)/m₀) + 1)/2
+        mesoderm_sigmoid = (
+            np.tanh(
+                (m_vals - float(self._m_sensitivity_const))
+                / float(self._m_sensitivity_const)
+            )
+            + 1.0
+        ) / 2.0
+
+        # 1 + β * sigmoid(m)
+        mesoderm_enhancement = 1.0 + float(self.params.beta) * mesoderm_sigmoid
+
+        # σ = ρ * A * [ρ/(1 + α*ρ²)] * [1 + β * sigmoid(m)]
+        stress_vals = (
+            rho_vals
+            * float(self.params.activity)
+            * density_saturation
+            * mesoderm_enhancement
+        )
+
+        return stress_vals
 
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""
@@ -499,15 +627,19 @@ class PescoidSimulator:
         solve(lhs_form == rhs_form, solution)
 
         # Extract components
-        rho_new, m_new, _ = solution.split(deepcopy=True)
-        if self._check_for_errant_values(rho_new) or self._check_for_errant_values(
-            m_new
+        rho_new, m_new, u_new, c_new = solution.split(deepcopy=True)
+        if (
+            self._check_for_errant_values(rho_new)
+            or self._check_for_errant_values(m_new)
+            or self._check_for_errant_values(c_new)
         ):
             return False
 
-        # Correct density
+        # Ensure non-negative density and morphogen
         rho_new = self._ensure_non_negative(rho_new)
+        c_new = self._ensure_non_negative(c_new)
         assign(solution.sub(0), rho_new)
+        assign(solution.sub(3), c_new)
 
         self._previous_state.assign(solution)
         self._current_state.assign(self._previous_state)
@@ -531,40 +663,6 @@ class PescoidSimulator:
         if self.logger.should_log(step_idx):
             self._log_state(step_idx, current_time)
 
-    def _compute_stress(self, rho_fn: Function, m_fn: Function) -> np.ndarray:
-        """Compute stress based on the current state."""
-        scalar_space = FunctionSpace(self._mesh, "CG", 1)
-        rho_projected = project(rho_fn, scalar_space)
-        m_projected = project(m_fn, scalar_space)
-
-        rho_vals = rho_projected.vector().get_local().astype(float)
-        m_vals = m_projected.vector().get_local().astype(float)
-
-        stress_vals = (
-            rho_vals
-            * float(self.params.activity)
-            * (
-                rho_vals
-                / (1.0 + float(self._rho_sensitivity_const) * rho_vals * rho_vals)
-            )
-            * (
-                1.0
-                + float(self.params.beta)
-                * (
-                    (
-                        np.tanh(
-                            (m_vals - float(self._m_sensitivity_const))
-                            / float(self._m_sensitivity_const)
-                        )
-                        + 1.0
-                    )
-                    / 2.0
-                )
-            )
-        )
-
-        return stress_vals
-
     def _compute_leading_edge(
         self, rho_vals: np.ndarray, x_coords: np.ndarray
     ) -> Tuple[float, int]:
@@ -579,7 +677,10 @@ class PescoidSimulator:
         return edge_x, edge_idx
 
     def _compute_mesoderm_fraction(
-        self, m_vals: np.ndarray, edge_idx: float | None, smoothing_factor: float = 0.15
+        self,
+        m_vals: np.ndarray,
+        edge_idx: float | None,
+        smoothing_factor: float | None = None,
     ) -> float:
         """Calculate the fraction of tissue that is expressing mesoderm using a
         smooth activation function.
@@ -591,9 +692,11 @@ class PescoidSimulator:
         if tissue_mesoderm.size == 0:
             return 0.0
 
+        if smoothing_factor is None:
+            return (tissue_mesoderm > 0).mean()
+
         smooth_activation = 1.0 / (1.0 + np.exp(-tissue_mesoderm / smoothing_factor))
         return smooth_activation.mean()
-        # return (tissue_mesoderm > 0).mean()
 
     def _compute_mesoderm_average(self, m_vals: np.ndarray, edge_idx: int) -> float:
         """Get all-tissue mesoderm average."""
@@ -610,10 +713,11 @@ class PescoidSimulator:
 
     def _log_state(self, step_idx: int, current_time: float) -> None:
         """Calculate and log the simulation state."""
-        rho_fn, m_fn, u_fn = self._current_state.split()
+        rho_fn, m_fn, u_fn, c_fn = self._current_state.split()
         rho_vals = rho_fn.compute_vertex_values(self._mesh)
         m_vals = m_fn.compute_vertex_values(self._mesh)
         u_vals = u_fn.compute_vertex_values(self._mesh)
+        c_vals = c_fn.compute_vertex_values(self._mesh)
         stress_vals = self._compute_stress(rho_fn, m_fn)
 
         x_coords = self._mesh.coordinates().flatten()
@@ -637,6 +741,9 @@ class PescoidSimulator:
             mesoderm_fraction=mesoderm_fraction,
             max_m=m_vals.max(),
             tissue_size=radius_star,
+            c_vals=c_vals,
+            c_center=c_vals[self.half_domain_idx],
+            max_c=c_vals.max(),
         )
 
     def save(self, file: str | Path) -> None:

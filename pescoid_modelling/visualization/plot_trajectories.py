@@ -264,7 +264,7 @@ def plot_simulation_timeseries(
     ax1.spines["top"].set_visible(False)
     ax2.spines["top"].set_visible(False)
 
-    plt.tight_layout()
+    # plt.tight_layout()
     suffix = "_with_exp" if experimental_data is not None else ""
     output_path = os.path.join(output_dir, f"{save_prefix}_timeseries{suffix}.svg")
     plt.savefig(output_path, bbox_inches="tight")
