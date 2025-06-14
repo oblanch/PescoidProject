@@ -156,8 +156,9 @@ class PescoidSimulator:
         self._eta_const = Constant(ETA)
 
         # Utility constants
-        self._one_const = Constant(1.0)
         self._half_const = Constant(0.5)
+        self._one_const = Constant(1.0)
+        self._two_const = Constant(2.0)
 
     def run(self) -> "PescoidSimulator":
         """Run the simulation."""
@@ -426,7 +427,7 @@ class PescoidSimulator:
         mesoderm_sigmoid = (
             tanh((m_prev - self._m_sensitivity_const) / self._m_sensitivity_const)  # type: ignore
             + self._one_const
-        ) / Constant(2.0)
+        ) / self._two_const
 
         # 1 + β * sigmoid(m)
         mesoderm_enhancement = self._one_const + self._beta_const * mesoderm_sigmoid
@@ -497,7 +498,7 @@ class PescoidSimulator:
         mesoderm_sigmoid = (
             tanh((m_prev - self._m_sensitivity_const) / self._m_sensitivity_const)  # type: ignore
             + self._one_const
-        ) / Constant(2.0)
+        ) / self._two_const
 
         # 1 + β * sigmoid(m)
         mesoderm_enhancement = self._one_const + self._beta_const * mesoderm_sigmoid
@@ -673,7 +674,7 @@ class PescoidSimulator:
         mesoderm_sigmoid = (
             tanh((m_prev - self._m_sensitivity_const) / self._m_sensitivity_const)  # type: ignore
             + self._one_const
-        ) / Constant(2.0)
+        ) / self._two_const
 
         # 1 + β * sigmoid(m)
         mesoderm_enhancement = self._one_const + self._beta_const * mesoderm_sigmoid
@@ -688,45 +689,6 @@ class PescoidSimulator:
 
         # ∂σ/∂x
         return active_stress.dx(0)
-
-    def _compute_stress(self, rho_fn: Function, m_fn: Function) -> np.ndarray:
-        """Compute stress based on the current state.
-
-        σ = ρ * A * [ρ/(1 + α*ρ²)] * [1 + β * sigmoid(m)]
-        """
-        scalar_space = FunctionSpace(self._mesh, "CG", 1)
-        rho_projected = project(rho_fn, scalar_space)
-        m_projected = project(m_fn, scalar_space)
-
-        rho_vals = rho_projected.vector().get_local().astype(float)
-        m_vals = m_projected.vector().get_local().astype(float)
-
-        # ρ/(1 + α*ρ²)
-        density_saturation = rho_vals / (
-            1.0 + float(self._rho_sensitivity_const) * rho_vals * rho_vals
-        )
-
-        # sigmoid(m) = (tanh((m - m₀)/m₀) + 1)/2
-        mesoderm_sigmoid = (
-            np.tanh(
-                (m_vals - float(self._m_sensitivity_const))
-                / float(self._m_sensitivity_const)
-            )
-            + 1.0
-        ) / 2.0
-
-        # 1 + β * sigmoid(m)
-        mesoderm_enhancement = 1.0 + float(self.params.beta) * mesoderm_sigmoid
-
-        # σ = ρ * A * [ρ/(1 + α*ρ²)] * [1 + β * sigmoid(m)]
-        stress_vals = (
-            rho_vals
-            * float(self.params.activity)
-            * density_saturation
-            * mesoderm_enhancement
-        )
-
-        return stress_vals
 
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""
@@ -812,6 +774,18 @@ class PescoidSimulator:
         meso_avg = meso_all.mean()
         return meso_avg
 
+    def _compute_stress(self, rho_arr: np.ndarray, m_arr: np.ndarray) -> np.ndarray:
+        """Compute stress of the simulation based on the current state."""
+        # ρ/(1 + α ρ²)
+        sat = rho_arr / (1.0 + self.params.rho_sensitivity * rho_arr**2)
+
+        # sigmoid(m) = (tanh((m - m₀)/m₀) + 1)/2
+        sig = 0.5 * (
+            1 + np.tanh((m_arr - self.params.m_sensitivity) / self.params.m_sensitivity)
+        )
+        # σ = ρ * A * sat * (1 + β sig)
+        return rho_arr * self.params.activity * sat * (1 + self.params.beta * sig)
+
     def _radius_norm(self, edge_x: float) -> float:
         """Calculate the normalized area based on the leading edge position.
 
@@ -826,7 +800,6 @@ class PescoidSimulator:
         m_vals = m_fn.compute_vertex_values(self._mesh)
         u_vals = u_fn.compute_vertex_values(self._mesh)
         c_vals = c_fn.compute_vertex_values(self._mesh)
-        stress_vals = self._compute_stress(rho_fn, m_fn)
 
         x_coords = self._mesh.coordinates().flatten()
         edge_x, edge_idx = self._compute_leading_edge(rho_vals, x_coords)
@@ -834,6 +807,7 @@ class PescoidSimulator:
 
         mesoderm_fraction = self._compute_mesoderm_fraction(m_vals, edge_idx)
         m_avg = self._compute_mesoderm_average(m_vals, edge_idx)
+        stress_vals = self._compute_stress(rho_vals, m_vals)
 
         self.logger.log_snapshot(
             step_idx=step_idx,
