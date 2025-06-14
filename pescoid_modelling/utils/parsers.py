@@ -25,52 +25,6 @@ def build_parser(
     return parser
 
 
-def _add_common_args(parser: argparse.ArgumentParser) -> None:
-    """Attach shared arguments to the given parser."""
-    parser.add_argument(
-        "--config",
-        type=str,
-        required=True,
-        help="Path to the YAML/JSON configuration file.",
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="results",
-        help="Directory in which to write results (will be created).",
-    )
-    parser.add_argument(
-        "--name",
-        type=str,
-        help="Optionally override the default output folder name (based on the config file).",
-    )
-
-
-def _build_simulation_parser(
-    subparsers: argparse._SubParsersAction, func: Callable
-) -> None:
-    """Adds `simulate` sub-command."""
-    _build_run_parser(
-        subparsers,
-        name="simulate",
-        help_msg="Run a single pescoid simulation.",
-        func=func,
-        corrected_pressure=True,
-    )
-
-
-def _build_optimization_parser(
-    subparsers: argparse._SubParsersAction, func: Callable
-) -> None:
-    """Adds `optimize` sub-command (same args minus pressure toggle)."""
-    _build_run_parser(
-        subparsers,
-        name="optimize",
-        help_msg="Run CMA-ES to optimize PDE parameters.",
-        func=func,
-    )
-
-
 def _build_run_parser(
     subparsers: argparse._SubParsersAction,
     name: str,
@@ -83,6 +37,9 @@ def _build_run_parser(
     """Helper used to build *simulate* and *optimize* sub-commands."""
     parser = subparsers.add_parser(name, help=help_msg)
     _add_common_args(parser)
+
+    if name == "simulate":
+        _add_simulation_parameter_overrides(parser)
 
     parser.add_argument(
         "--experimental_npz",
@@ -114,6 +71,124 @@ def _build_run_parser(
         )
 
     parser.set_defaults(func=func)
+
+
+def _add_common_args(parser: argparse.ArgumentParser) -> None:
+    """Attach shared arguments to the given parser."""
+    parser.add_argument(
+        "--config",
+        type=str,
+        required=True,
+        help="Path to the YAML/JSON configuration file.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="results",
+        help="Directory in which to write results (will be created).",
+    )
+    parser.add_argument(
+        "--name",
+        type=str,
+        help="Optionally override the default output folder name (based on the config file).",
+    )
+
+
+def _add_simulation_parameter_overrides(parser: argparse.ArgumentParser) -> None:
+    """Add optional arguments for all simulation parameters."""
+    param_group = parser.add_argument_group(
+        "simulation parameter overrides", "Override any parameter from the config file"
+    )
+
+    # Time and domain parameters
+    param_group.add_argument("--delta_t", type=float, help="Time step (t_g units)")
+    param_group.add_argument(
+        "--total_hours", type=float, help="Total biological time to simulate [h]"
+    )
+    param_group.add_argument(
+        "--domain_length", type=float, help="Physical domain length in nondim units"
+    )
+    param_group.add_argument("--dx_interval", type=float, help="IntervalMesh spacing")
+
+    # Physical parameters
+    param_group.add_argument("--diffusivity", type=float, help="δ - nondim diffusivity")
+    param_group.add_argument(
+        "--m_diffusivity", type=float, help="Artificial diffusivity on mesoderm"
+    )
+    param_group.add_argument("--tau_m", type=float, help="Mesoderm growth time-scale")
+    param_group.add_argument(
+        "--flow", type=float, help="F - nondimensional advection or flow"
+    )
+    param_group.add_argument("--activity", type=float, help="A - activity parameter")
+    param_group.add_argument(
+        "--beta", type=float, help="β - contribution of mesoderm fate to contractility"
+    )
+    param_group.add_argument("--gamma", type=float, help="Γ non friction coefficient")
+    param_group.add_argument(
+        "--sigma_c", type=float, help="σ_c - critical amount of mechanical feedback"
+    )
+    param_group.add_argument(
+        "--r", type=float, help="Sensitivity of cells to mechanical feedback"
+    )
+    param_group.add_argument(
+        "--rho_sensitivity",
+        type=float,
+        help="Saturation of active stress at high density",
+    )
+    param_group.add_argument(
+        "--m_sensitivity",
+        type=float,
+        help="Sensitivity of contractility increase when cells become mesoderm",
+    )
+
+    # Morphogen parameters
+    param_group.add_argument(
+        "--c_diffusivity", type=float, help="D_c - morphogen diffusion coefficient"
+    )
+    param_group.add_argument(
+        "--morphogen_decay", type=float, help="k - morphogen decay/consumption rate"
+    )
+    param_group.add_argument(
+        "--gaussian_width", type=float, help="σ - width of Gaussian source"
+    )
+    param_group.add_argument(
+        "--morphogen_feedback",
+        type=float,
+        help="R - morphogen sensitivity for chemical feedback",
+    )
+
+    # Mode parameter
+    param_group.add_argument(
+        "--feedback_mode",
+        type=str,
+        choices=["active_stress", "strain_rate"],
+        help="Mode of mechanical feedback",
+    )
+
+
+def _build_simulation_parser(
+    subparsers: argparse._SubParsersAction, func: Callable
+) -> None:
+    """Adds `simulate` sub-command."""
+    _build_run_parser(
+        subparsers,
+        name="simulate",
+        help_msg="Run a single pescoid simulation.",
+        func=func,
+        corrected_pressure=True,
+    )
+
+
+def _build_optimization_parser(
+    subparsers: argparse._SubParsersAction, func: Callable
+) -> None:
+    """Adds `optimize` sub-command (same args minus pressure toggle)."""
+    _build_run_parser(
+        subparsers,
+        name="optimize",
+        help_msg="Run CMA-ES to optimize PDE parameters.",
+        func=func,
+    )
 
 
 def _build_visualization_parser(

@@ -11,7 +11,9 @@ from pescoid_modelling.objective import ReferenceTrajectories
 from pescoid_modelling.optimizer import CMAOptimizer
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import _ORDER
+from pescoid_modelling.utils.config import extract_simulation_overrides
 from pescoid_modelling.utils.config import load_config
+from pescoid_modelling.utils.config import load_config_with_overrides
 from pescoid_modelling.utils.parsers import build_parser
 from pescoid_modelling.visualization.plot_trajectories import (
     visualize_simulation_results,
@@ -80,7 +82,10 @@ def _run_simulation(args: argparse.Namespace) -> None:
 
     work_dir = _prepare_output_dir(args)
 
-    sim_params, _ = load_config(args.config, require_cma=False)
+    overrides = extract_simulation_overrides(args)
+    sim_params, _ = load_config_with_overrides(
+        args.config, overrides, require_cma=False
+    )
     out_npz = work_dir / "simulation_results.npz"
 
     # Initialize and run simulator

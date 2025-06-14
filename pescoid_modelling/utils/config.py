@@ -2,6 +2,7 @@
 solver parameters and optimization settings."""
 
 from dataclasses import dataclass
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
@@ -135,3 +136,57 @@ def load_config(
     )
 
     return sim, cma
+
+
+def load_config_with_overrides(
+    path: Union[str, Path], overrides: Dict[str, Any], require_cma: bool = True
+) -> Tuple[SimulationParams, CMAConfig | None]:
+    """Load configuration from YAML and apply command-line overrides.
+
+    Args:
+        path: Path to YAML configuration file
+        overrides: Dictionary of parameter overrides from command line
+        require_cma: Whether CMA configuration is required
+
+    Returns:
+        Tuple of (SimulationParams with overrides applied, CMAConfig or None)
+    """
+    sim_params, cma_config = load_config(path, require_cma)
+    sim_params_with_overrides = apply_parameter_overrides(sim_params, overrides)
+    return sim_params_with_overrides, cma_config
+
+
+def apply_parameter_overrides(
+    params: SimulationParams, overrides: Dict[str, Any]
+) -> SimulationParams:
+    """Apply command-line parameter overrides to SimulationParams."""
+    valid_fields = {field.name for field in params.__dataclass_fields__.values()}
+
+    invalid_keys = set(overrides.keys()) - valid_fields
+    if invalid_keys:
+        raise ValueError(
+            f"Invalid parameter override(s): {invalid_keys}. "
+            f"Valid parameters are: {sorted(valid_fields)}"
+        )
+
+    filtered_overrides = {k: v for k, v in overrides.items() if v is not None}
+    if not filtered_overrides:
+        return params
+
+    return replace(params, **filtered_overrides)
+
+
+def extract_simulation_overrides(args) -> Dict[str, Any]:
+    """Extract simulation parameter overrides from command-line arguments."""
+    param_names = {
+        field.name for field in SimulationParams.__dataclass_fields__.values()
+    }
+
+    overrides = {}
+    for param_name in param_names:
+        if hasattr(args, param_name):
+            value = getattr(args, param_name)
+            if value is not None:
+                overrides[param_name] = value
+
+    return overrides
