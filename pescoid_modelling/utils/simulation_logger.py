@@ -52,6 +52,7 @@ class SimulationLogger:
         self.max_snapshots = num_steps // snapshot_interval + 1
         self.mesh_size = mesh_size
         self._snapshot_count = 0
+        self._step_counter = 0
 
         # 2D arrays
         self.density = np.zeros((self.max_snapshots, mesh_size))
@@ -76,9 +77,30 @@ class SimulationLogger:
         self.max_morphogen = np.zeros(self.max_snapshots)
         self.morphogen_mean = np.zeros(self.max_snapshots)
 
-    def should_log(self, step_idx: int) -> bool:
+        # norms for PDEs
+        self.rho_norm = np.zeros(num_steps)
+        self.m_norm = np.zeros(num_steps)
+        self.u_norm = np.zeros(num_steps)
+        self.c_norm = np.zeros(num_steps)
+
+    def _should_log(self, step_idx: int) -> bool:
         """Determines if the current step should be logged."""
         return step_idx % self.snapshot_interval == 0
+
+    def log_norm(
+        self,
+        step_idx: int,
+        rho_norm: float,
+        m_norm: float,
+        u_norm: float,
+        c_norm: float,
+    ) -> None:
+        """Store L2 norms of each weak form for this step."""
+        self.rho_norm[step_idx] = rho_norm
+        self.m_norm[step_idx] = m_norm
+        self.u_norm[step_idx] = u_norm
+        self.c_norm[step_idx] = c_norm
+        self._step_counter += 1
 
     def log_snapshot(
         self,
@@ -101,7 +123,7 @@ class SimulationLogger:
         x_coords=None,
     ):
         """Log a snapshot of simulation data."""
-        if not self.should_log(step_idx):
+        if not self._should_log(step_idx):
             return
 
         if self.x_coordinates is None and x_coords is not None:
@@ -156,7 +178,7 @@ class SimulationLogger:
 
     def to_dict(self) -> dict:
         """Convert all logs to a dictionary for saving or analysis."""
-        return {
+        base = {
             # Time and tissue metrics
             "time": self.times,
             "tissue_size": self.tissue_size,
@@ -182,6 +204,16 @@ class SimulationLogger:
             # Coordinates
             "x_coords": self.x_coordinates,
         }
+
+        base.update(
+            {
+                "rho_norm": self.rho_norm[: self._step_counter],
+                "m_norm": self.m_norm[: self._step_counter],
+                "u_norm": self.u_norm[: self._step_counter],
+                "c_norm": self.c_norm[: self._step_counter],
+            }
+        )
+        return base
 
     def _normalize_mesoderm_data(self, mesoderm_data: np.ndarray) -> np.ndarray:
         """Normalize mesoderm data to a [0,1] range."""

@@ -3,8 +3,8 @@
 from pathlib import Path
 from typing import Dict, Tuple
 
+from dolfin import assemble  # type: ignore
 from dolfin import assign  # type: ignore
-from dolfin import conditional  # type: ignore
 from dolfin import Constant  # type: ignore
 from dolfin import dx  # type: ignore
 from dolfin import Expression  # type: ignore
@@ -15,13 +15,13 @@ from dolfin import FunctionSpace  # type: ignore
 from dolfin import IntervalMesh  # type: ignore
 from dolfin import lhs  # type: ignore
 from dolfin import LogLevel  # type: ignore
-from dolfin import lt  # type: ignore
 from dolfin import MixedElement  # type: ignore
 from dolfin import project  # type: ignore
 from dolfin import rhs  # type: ignore
 from dolfin import set_log_level  # type: ignore
 from dolfin import solve  # type: ignore
 from dolfin import split  # type: ignore
+from dolfin import sqrt  # type: ignore
 from dolfin import TestFunctions  # type: ignore
 from dolfin import TrialFunctions  # type: ignore
 import numpy as np
@@ -696,6 +696,29 @@ class PescoidSimulator:
         solution = Function(self._mixed_function_space)
         solve(lhs_form == rhs_form, solution)
 
+        from numpy.linalg import norm  # add once at the top of the file
+
+        # split old and new states
+        rho_old, m_old, u_old, c_old = self._previous_state.split(deepcopy=True)  # type: ignore
+        rho_new, m_new, u_new, c_new = solution.split(deepcopy=True)  # type: ignore
+
+        # vector differences
+        delta_rho = float(
+            norm(rho_new.vector().get_local() - rho_old.vector().get_local())
+        )
+        delta_m = float(norm(m_new.vector().get_local() - m_old.vector().get_local()))
+        delta_u = float(norm(u_new.vector().get_local() - u_old.vector().get_local()))
+        delta_c = float(norm(c_new.vector().get_local() - c_old.vector().get_local()))
+
+        # log through the existing API (names you already use)
+        self.logger.log_norm(
+            step_idx=step_idx,
+            rho_norm=delta_rho,
+            m_norm=delta_m,
+            u_norm=delta_u,
+            c_norm=delta_c,
+        )
+
         # Extract components
         rho_new, m_new, u_new, c_new = solution.split(deepcopy=True)
         if (
@@ -730,7 +753,7 @@ class PescoidSimulator:
     def _log_simulation_state(self, step_idx: int) -> None:
         """Take a snapshot of the simulation state."""
         current_time = (step_idx + 1) * self.time_step
-        if self.logger.should_log(step_idx):
+        if self.logger._should_log(step_idx):
             self._log_state(step_idx, current_time)
 
     def _compute_leading_edge(
