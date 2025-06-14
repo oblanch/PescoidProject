@@ -834,9 +834,8 @@ class PescoidSimulator:
 
     @staticmethod
     def _ensure_non_negative(var_fn: Function) -> Function:
-        """Ensure the variable function is non-negative."""
-        V = var_fn.function_space()
-        corrected = Function(V)
-        corrected_expr = conditional(lt(var_fn, 0), Constant(0.0), var_fn)
-        corrected.assign(project(corrected_expr, V))
-        return corrected
+        arr = var_fn.vector().get_local()
+        np.maximum(arr, 0.0, out=arr)
+        var_fn.vector().set_local(arr)
+        var_fn.vector().apply("insert")
+        return var_fn
