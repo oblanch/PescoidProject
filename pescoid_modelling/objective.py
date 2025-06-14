@@ -146,9 +146,10 @@ def _compute_dynamic_weights(
 def optimization_objective(
     results: Dict[str, np.ndarray],
     experimental_data: ReferenceTrajectories,
+    minutes_per_generation: float = 30.0,
+    optimization_target: str = "tissue_and_mesoderm",
     tissue_std: Optional[float] = None,
     mesoderm_std: Optional[float] = None,
-    minutes_per_generation: float = 30.0,
     *,
     ema_dict: MutableMapping[str, Optional[float]] | None = None,
 ) -> float:
@@ -161,8 +162,11 @@ def optimization_objective(
         - "tissue_size": L_sim(t)
         - "mesoderm_fraction": M_sim(t)
       experimental_data: Experimental trajectories to match (time in minutes).
-      minutes_per_generation: Conversion factor from generation units to
-      minutes.
+        minutes_per_generation: Conversion factor from generation units to
+        minutes
+      optimization_target: What to optimize over - "tissue", "mesoderm", or
+        "tissue_and_mesoderm". If "tissue_and_mesoderm", both tissue and
+        mesoderm losses are computed and weighted dynamically.
 
     Returns:
       L2 error value or calls `_invalid_fitness()` if results are invalid or
@@ -181,6 +185,9 @@ def optimization_objective(
         return _invalid_fitness()
 
     try:
+        l2_tissue = None
+        l2_meso = None
+
         if tissue_std is None or mesoderm_std is None:
             tissue_std, mesoderm_std = _calculate_normalization_scales(
                 experimental_data
@@ -199,24 +206,41 @@ def optimization_objective(
             return _invalid_fitness()
 
         valid_exp_mask = experimental_data.time <= sim_time_minutes[-1]
-        exp_tissue_valid = experimental_data.tissue_size[valid_exp_mask]
-        exp_meso_valid = experimental_data.mesoderm_fraction[valid_exp_mask]
 
-        # Loss
-        l2_tissue = _calculate_trajectory_mismatch(
-            sim_interpolated=L_sim_on_exp,
-            exp_values=exp_tissue_valid,
-            normalization_scale=tissue_std,
-        )
-        l2_meso = _calculate_trajectory_mismatch(
-            sim_interpolated=M_sim_on_exp,
-            exp_values=exp_meso_valid,
-            normalization_scale=mesoderm_std,
-        )
+        if optimization_target in ["tissue", "tissue_and_mesoderm"]:
+            L_sim_on_exp = _interpolate_simulation_to_experimental_timepoints(
+                t_sim, L_sim, experimental_data.time, minutes_per_generation
+            )
+            exp_tissue_valid = experimental_data.tissue_size[valid_exp_mask]
+            l2_tissue = _calculate_trajectory_mismatch(
+                sim_interpolated=L_sim_on_exp,
+                exp_values=exp_tissue_valid,
+                normalization_scale=tissue_std,
+            )
+        if optimization_target in ["mesoderm", "tissue_and_mesoderm"]:
+            M_sim_on_exp = _interpolate_simulation_to_experimental_timepoints(
+                t_sim, M_sim, experimental_data.time, minutes_per_generation
+            )
+            exp_meso_valid = experimental_data.mesoderm_fraction[valid_exp_mask]
+            l2_meso = _calculate_trajectory_mismatch(
+                sim_interpolated=M_sim_on_exp,
+                exp_values=exp_meso_valid,
+                normalization_scale=mesoderm_std,
+            )
 
-        losses = {"tissue": l2_tissue, "mesoderm": l2_meso}
-        weights = _compute_dynamic_weights(losses=losses, ema_dict=ema_dict)  # type: ignore
-        return weights["tissue"] * l2_tissue + weights["mesoderm"] * l2_meso
+        if optimization_target == "tissue":
+            assert l2_tissue is not None
+            return l2_tissue
+        elif optimization_target == "mesoderm":
+            assert l2_meso is not None
+            return l2_meso
+        elif optimization_target == "tissue_and_mesoderm":
+            assert l2_tissue is not None and l2_meso is not None
+            losses = {"tissue": l2_tissue, "mesoderm": l2_meso}
+            weights = _compute_dynamic_weights(losses=losses, ema_dict=ema_dict)  # type: ignore
+            return weights["tissue"] * l2_tissue + weights["mesoderm"] * l2_meso
+        else:
+            raise ValueError(f"Invalid optimization_target: {optimization_target}")
 
     except ValueError as e:
         raise ValueError(

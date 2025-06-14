@@ -56,16 +56,18 @@ def _validate_experimental_data(experimental_npz: str) -> None:
         raise ValueError(f"Cannot read experimental data file {experimental_npz}: {e}")
 
 
-def _prepare_output_dir(output_dir: str, config_file_dir: str) -> Path:
+def _prepare_output_dir(args: argparse.Namespace) -> Path:
     """Prepare the output directory for results. Creates a subdirectory based on
     the prefix of the yaml.
     """
-    # Get the prefix from the config file name
-    output_path = Path(output_dir)
-    config_file = Path(config_file_dir)
+    output_path = Path(args.output_dir)
 
-    # Create the output directory with the prefix
-    work_dir = output_path / config_file.stem
+    if args.name:
+        work_dir = output_path / args.name
+    else:
+        config_file = Path(args.config)
+        work_dir = output_path / config_file.stem
+
     work_dir.mkdir(parents=True, exist_ok=True)
     return work_dir
 
@@ -76,10 +78,7 @@ def _run_simulation(args: argparse.Namespace) -> None:
     if args.generate_figures:
         _validate_experimental_data(args.experimental_npz)
 
-    work_dir = _prepare_output_dir(
-        output_dir=args.output_dir,
-        config_file_dir=args.config,
-    )
+    work_dir = _prepare_output_dir(args)
 
     sim_params, _ = load_config(args.config, require_cma=False)
     out_npz = work_dir / "simulation_results.npz"
@@ -113,11 +112,7 @@ def _run_optimization(args: argparse.Namespace) -> None:
     """Entry point for running optimization."""
     # Load configuration
     _validate_experimental_data(args.experimental_npz)
-    work_dir = _prepare_output_dir(
-        output_dir=args.output_dir,
-        config_file_dir=args.config,
-    )
-
+    work_dir = _prepare_output_dir(args)
     sim_params, cma_cfg = load_config(args.config)
     if cma_cfg is None:
         raise ValueError(
@@ -136,6 +131,7 @@ def _run_optimization(args: argparse.Namespace) -> None:
         popsize=cma_cfg.popsize,
         n_restarts=cma_cfg.n_restarts,
         experimental_data=experimental_data,
+        optimization_target=args.optimization_target,
     )
     LOGGER.info("Running CMA-ES optimization.")
     best_params = optimizer.optimize()

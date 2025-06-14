@@ -39,6 +39,11 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         default="results",
         help="Directory in which to write results (will be created).",
     )
+    parser.add_argument(
+        "--name",
+        type=str,
+        help="Optionally override the default output folder name (based on the config file).",
+    )
 
 
 def _build_simulation_parser(
@@ -73,6 +78,7 @@ def _build_run_parser(
     func: Callable,
     *,
     corrected_pressure: bool = False,
+    optimize_args: bool = False,
 ) -> None:
     """Helper used to build *simulate* and *optimize* sub-commands."""
     parser = subparsers.add_parser(name, help=help_msg)
@@ -96,6 +102,15 @@ def _build_run_parser(
             action="store_true",
             help="Use corrected pressure velocity for simulation.",
             default=False,
+        )
+
+    if optimize_args:
+        parser.add_argument(
+            "--optimization_target",
+            type=str,
+            choices=["tissue", "mesoderm", "tissue_and_mesoderm"],
+            default="tissue_and_mesoderm",
+            help="What to optimize over: tissue, mesoderm, or tissue_and_mesoderm",
         )
 
     parser.set_defaults(func=func)

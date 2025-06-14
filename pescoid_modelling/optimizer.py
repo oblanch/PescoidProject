@@ -51,6 +51,7 @@ def _worker_eval(
     experimental: ReferenceTrajectories,
     scaler: ParamScaler,
     obj_fn: Callable[..., float],
+    optimization_target: str,
 ) -> float:
     """Executed in the pool; has no reference to the CMAOptimizer
     instance to avoid pickling issues.
@@ -64,7 +65,12 @@ def _worker_eval(
         if res.get("aborted", [False])[0]:
             raise RuntimeError("Invalid simulation results")
 
-        return obj_fn(res, experimental, ema_dict=GLOBAL_EMA)
+        return obj_fn(
+            res,
+            experimental,
+            optimization_target=optimization_target,
+            ema_dict=GLOBAL_EMA,
+        )
     except Exception as exc:
         print(f"Simulation failure ({exc}), penalizing...")
         return _invalid_fitness()
@@ -104,6 +110,7 @@ class CMAOptimizer:
         popsize: int = 8,
         n_restarts: int = 4,
         objective_function: Callable[..., float] = optimization_objective,
+        optimization_target: str = "tissue_and_mesoderm",
     ) -> None:
         """Initialize the CMA-ES optimizer.
 
@@ -124,6 +131,7 @@ class CMAOptimizer:
         self._sigma0 = sigma
         self._x0 = x0
         self._n_restarts = n_restarts
+        self.optimization_target = optimization_target
 
         self.n_workers = get_physical_cores()
         self._mp_manager = mp.Manager()
@@ -173,7 +181,10 @@ class CMAOptimizer:
                 raise RuntimeError("Invalid simulation results")
 
             return self.objective_function(
-                results, self.experimental_data, ema_dict=GLOBAL_EMA
+                results,
+                self.experimental_data,
+                optimization_target=self.optimization_target,
+                ema_dict=GLOBAL_EMA,
             )
 
         except Exception as exc:
@@ -219,6 +230,7 @@ class CMAOptimizer:
                                         self.experimental_data,
                                         self.scaler,
                                         self.objective_function,
+                                        self.optimization_target,
                                     )
                                     for x in X
                                 ],
