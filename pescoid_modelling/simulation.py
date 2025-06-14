@@ -25,6 +25,7 @@ from dolfin import sqrt  # type: ignore
 from dolfin import TestFunctions  # type: ignore
 from dolfin import TrialFunctions  # type: ignore
 import numpy as np
+from numpy.linalg import norm
 from tqdm import tqdm  # type: ignore
 from ufl import tanh  # type: ignore
 
@@ -695,8 +696,6 @@ class PescoidSimulator:
         lhs_form, rhs_form = self._forms
         solution = Function(self._mixed_function_space)
         solve(lhs_form == rhs_form, solution)
-
-        from numpy.linalg import norm  # add once at the top of the file
 
         # split old and new states
         rho_old, m_old, u_old, c_old = self._previous_state.split(deepcopy=True)  # type: ignore

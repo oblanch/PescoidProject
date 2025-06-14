@@ -33,7 +33,7 @@ Simulation and optimization runs require different sets of parameters. An exampl
 A reference timeseries with data for tissue size and mesoderm fraction is used for the optimization as well as post-simulation comparison. We provide this data in [`data/reference_timeseries.npz`](data/reference_timeseries.npz). *The reference file contains smoothed and plateau-adjusted trajectories derived from the experimental measurements using the [`make_reference_timeseries`](pescoid_modelling/utils/helpers.py#L11) function. For raw experimental data, please see the [Zenodo repository](https://zenodo.org/record/YOUR_RECORD_ID).*
 
 ## Examples
-Run simulations:
+### Run simulations:
 ```shell
 # single simulation
 pescoid simulate \
@@ -41,17 +41,18 @@ pescoid simulate \
   --output_dir path/to/output
 ```
 
-Run simulation and generate trajectory comparison plot:
-```shell
-# single simulation + post simulation viz
-pescoid simulate \
-  --config path/to/your/simulation_config.yaml \
-  --output_dir path/to/output \
-  --generate_figures \
-  --experimental_npz path/to/reference_timeseries.npz
-```
+**Optional arguments:**
 
-Run parameter optimization:
+* `--generate_figures`: Plot simulation trajectory against experimental trajectory
+* `--experimental_npz [PATH/TO/.NPZ]`: Specify reference timeseries for `--generate_figures`
+* `--name [NAME]`: Choose a folder output name (defaults to config.yaml stem)
+
+Users can override any of the parameters specified in their simulation YAML by supplying it as an argument. For example:
+* `--activity 0.5 --r 5.0 --tau_m 10.0`
+
+<br>
+
+### Run parameter optimization:
 ```shell
 # full optimization
 pescoid optimize \
@@ -60,7 +61,12 @@ pescoid optimize \
   --experimental_npz path/to/reference_timeseries.npz
 ```
 
-Standalone visualization:
+**Optional arguments:**
+* `--optimization_target [TARGET]`: Choose between `["tissue", "mesoderm", "tissue_and_mesoderm"]`. Adjusts the fitness objective to optimize for individual trajectories or both.
+
+<br>
+
+### Standalone visualization:
 ```shell
 # figures only
 pescoid plot \
