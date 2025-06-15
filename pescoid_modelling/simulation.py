@@ -238,10 +238,10 @@ class PescoidSimulator:
         velocity_initial_condition = Expression("0.0", degree=1)
         morphogen_initial_condition = Expression("0.0", degree=1)
 
-        # Create individual function spaces
+        # Create function spaces
         scalar_space = FunctionSpace(self._mesh, "CG", 1)
 
-        # Project expressions onto individual spaces
+        # Project expressions onto function spaces
         density_func = project(density_initial_condition, scalar_space)
         mesoderm_func = project(mesoderm_initial_condition, scalar_space)
         velocity_func = project(velocity_initial_condition, scalar_space)
@@ -314,31 +314,35 @@ class PescoidSimulator:
         test_rho: Function,
     ) -> Form:
         """Formulate the variational form for the density equation (tissue
-        growth). Equation is of the following form:
+        growth).
 
-        ∂ρ/∂t = δ * ∂²ρ/∂x²
-            + F * u * ∂ρ/∂x
-            - ρ * (1 - ρ)
+        Strong form:
+          ∂ρ/∂t  +  ∂x(F * u * ρ)  =  δ * ∂²ρ/∂x² - ρ * (1 - ρ)
+
+        Weak form:
+          (ρ^{n+1} - ρⁿ) * φ * dx
+          + Δt * δ * ∂xρ^{n+1} * ∂xφ * dx
+          - Δt * F * uⁿ * ρⁿ * ∂xφ * dx
+          - Δt * ρⁿ * (1 - ρⁿ) * φ * dx = 0
         """
-        # ∂ρ/∂t
+        # ∂ρ/∂t = (ρ^{n+1} - ρⁿ) * φ * dx
         temporal = (rho - rho_prev) * test_rho * dx  # type: ignore
 
-        # +δ * ∂ρ/∂x * ∂test_rho/∂x
+        # δ * ∂²ρ/∂x² = + Δt * δ * ∂xρ^{n+1} * ∂xφ * dx
         diffusion = (
             self._dt_const * self._diffusivity_const * rho.dx(0) * test_rho.dx(0) * dx  # type: ignore
         )
 
-        # -F * u * ρ_prev * ∂test_rho/∂x
+        # ∂x(F * u * ρ) = - Δt * F * uⁿ * ρⁿ * ∂xφ * dx
         advection = (
             -self._dt_const * self._flow_const * u_prev * rho_prev * test_rho.dx(0) * dx  # type: ignore
         )
 
-        # -ρ * (1 - ρ)
+        # -ρ * (1 - ρ) = - Δt * ρⁿ * (1 - ρⁿ) * φ * dx
         reaction = (
             -self._dt_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
         )
 
-        # Complete form
         return temporal + diffusion + advection + reaction
 
     def _formulate_mesoderm_equation(
@@ -350,21 +354,26 @@ class PescoidSimulator:
         c_prev: Function,
         test_m: Function,
     ) -> Form:
-        """Formulate the variational form for mesoderm differentiation. The
-        complete equation is:
+        """Formulate the variational form for mesoderm differentiation.
 
-        ∂m/∂t = - (1/τₘ) * m * (m + 1) * (1 - m)
-            - (1/τₘ) * R * [mechanical_feedback_term]
-            - (1/τₘ) * R * c
-            + Dₘ * ∂²m/∂x²
-            + F * u * ∂m/∂x
+        Strong form:
+          ∂m/∂t = Dₘ * ∂²m/∂x² + F * uⁿ * ∂mⁿ/∂x - (1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ)
+          - (1/τₘ) * R * [mech_cueⁿ] - (1/τₘ) * R_c * cⁿ
+
+        Weak form:
+          (m^{n+1} - mⁿ) * φ * dx
+          + Δt * Dₘ * ∂xm^{n+1} * ∂xφ * dx
+          + Δt * F * uⁿ * ∂xmⁿ * φ * dx
+          - Δt * (1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ) * φ * dx
+          - Δt * (1/τₘ) * R * [mech_cueⁿ] * φ * dx
+          - Δt * (1/τₘ) * R_c * cⁿ * φ * dx = 0
         """
         feedback_mode = getattr(self.params, "feedback_mode", "strain_rate")
 
-        # ∂m/∂t
+        # ∂m/∂t = (m^{n+1} - mⁿ) * φ * dx
         temporal = (m - m_prev) * test_m * dx  # type: ignore
 
-        # -(1/τₘ) * m * (m + 1) * (1 - m)
+        # -(1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ) = -Δt * (1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ) * φ * dx
         common_decay = (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
@@ -375,17 +384,17 @@ class PescoidSimulator:
             * dx
         )
 
-        # -(1/τₘ) * R * [mechanical cue]
         if feedback_mode == "strain_rate":
-            mechanical_feedback = self._formulate_strain_rate_feedback(
-                u_prev, rho_prev, test_m
-            )
-        else:  # active_stress
-            mechanical_feedback = self._formulate_active_stress_feedback(
-                rho_prev, m_prev, test_m
-            )
+            cue = "strain_rate"
+        else:
+            cue = "active_stress"
 
-        # -(1/τₘ) * R_morphogen * c
+        # -(1/τₘ) * R * [mech_cueⁿ] = -Δt * (1/τₘ) * R * [mech_cueⁿ] * φ * dx
+        mechanical_feedback = self._formulate_mechanical_feedback(
+            rho_prev, m_prev, test_m, cue
+        )
+
+        # -(1/τₘ) * R_c * cⁿ = -Δt * (1/τₘ) * R_c * cⁿ * φ * dx
         chemical_feedback = (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
@@ -395,13 +404,12 @@ class PescoidSimulator:
             * dx
         )
 
-        # +Dₘ * ∂m/∂x * ∂test_m/∂x
+        # Dₘ * ∂²m/∂x² = +Δt * Dₘ * ∂xm^{n+1} * ∂xφ * dx
         diffusion = self._dt_const * self._m_diffusivity_const * m.dx(0) * test_m.dx(0) * dx  # type: ignore
 
-        # +F * u * ∂m/∂x * test_m
+        # F * uⁿ * ∂mⁿ/∂x = +Δt * F * uⁿ * ∂xmⁿ * φ * dx
         advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * test_m * dx  # type: ignore
 
-        # Complete form
         return (
             temporal
             - common_decay
@@ -411,13 +419,131 @@ class PescoidSimulator:
             + advection
         )
 
+    def _formulate_velocity_equation(
+        self,
+        u: Function,
+        rho_prev: Function,
+        m_prev: Function,
+        test_u: Function,
+    ) -> Form:
+        """Formulate the variational form for tissue velocity (force balance
+        equation):
+
+        Strong form:
+          ρ_gate * Γ * u^{n+1} - ρ_gate * ∂²u/∂x² = ∂σⁿ/∂x
+
+        Weak form:
+          ρ_gate * Γ * u^{n+1} * φ * dx
+          + ρ_gate * ∂xu^{n+1} * ∂xφ * dx
+          - (∂σⁿ/∂x) * φ * dx = 0
+        """
+        # ρ_gate = (tanh((ρ - ρ₀)/w) + 1)/2
+        rho_gate = self._half_const * (
+            tanh((rho_prev - self._rho_gate_center_const) / self._rho_gate_width_const)  # type: ignore
+            + self._one_const
+        )
+
+        # ∂σⁿ/∂x
+        active_stress_div = self._calculate_stress_divergence(rho_prev, m_prev)
+
+        # ρ_gate * Γ * u^{n+1} = ρ_gate * Γ * u^{n+1} * φ * dx
+        friction = rho_gate * self._gamma_const * u * test_u * dx
+
+        # -ρ_gate * ∂u/∂x * ∂test_u/∂x = +ρ_gate * ∂xu^{n+1} * ∂xφ * dx
+        viscosity = rho_gate * u.dx(0) * test_u.dx(0) * dx  # type: ignore
+
+        # (∂σⁿ/∂x) * φ * dx
+        force = active_stress_div * test_u * dx  # type: ignore
+
+        return friction + viscosity - force
+
+    def _formulate_pressure_corrected_velocity_equation(
+        self,
+        u: Function,
+        rho_prev: Function,
+        m_prev: Function,
+        test_u: Function,
+    ) -> Form:
+        """Formulate the variational form for tissue velocity
+        (pressure-corrected active-polar fluid model):
+
+        Strong form:
+          η * ∂²u/∂x² + ∂(σᵃ - P)/∂x = 0
+
+        Weak form:
+          η * ∂u/∂x * ∂φ/∂x * dx
+          - (σᵃ - P) * ∂φ/∂x * dx = 0
+        """
+        # σᵃ
+        active_stress = self._calculate_active_stress_field(rho_prev, m_prev)
+
+        # vᵣ(R)/R
+        boundary_term_const = self._calculate_boundary_velocity_term_from_state()
+
+        # P = σᵃ - η * ( vᵣ(R)/R - ∇·v )
+        pressure = self._calculate_pressure(u, active_stress, boundary_term_const)
+
+        # σᵃ - P
+        corrected_stress = active_stress - pressure  # type: ignore
+
+        # η * ∂²u/∂x² = η * ∂u/∂x * ∂φ/∂x * dx
+        viscous_term = self._eta_const * u.dx(0) * test_u.dx(0) * dx  # type: ignore
+
+        # ∂x(σᵃ - P) = - (σᵃ - P) * ∂φ/∂x * dx
+        stress_term = -corrected_stress * test_u.dx(0) * dx  # type: ignore
+
+        return viscous_term + stress_term
+
+    def _formulate_morphogen_equation(
+        self,
+        c: Function,
+        c_prev: Function,
+        u_prev: Function,
+        test_c: Function,
+    ) -> Form:
+        """Formulate the variational form for morphogen concentration.
+
+        Strong form:
+          ∂c/∂t + ∂x(v * c) = s(x) - k * c + D_c * ∂²c/∂x²
+
+        Weak form:
+          (c^{n+1} - cⁿ) * φ * dx
+          - Δt * vⁿ * cⁿ * ∂φ/∂x * dx
+          + Δt * k * cⁿ * φ * dx
+          + Δt * D_c * ∂c^{n+1}/∂x * ∂φ/∂x * dx
+          - Δt * s(x) * φ * dx = 0
+        """
+        # s(x) = (1/(σ√(2π))) * exp(-x²/(2σ²))
+        sigma = float(self.params.gaussian_width)
+        normalization = 1.0 / (sigma * np.sqrt(2 * np.pi))
+        gaussian_expr = f"{normalization} * exp(-pow(x[0], 2) / (2 * pow({sigma}, 2)))"
+        gaussian_source = Expression(gaussian_expr, degree=2)
+
+        # ∂c/∂t = (c^{n+1} - cⁿ) * φ * dx
+        temporal = (c - c_prev) * test_c * dx  # type: ignore
+
+        # ∂x(v * c) = - Δt * vⁿ * cⁿ * ∂φ/∂x * dx
+        advection = -self._dt_const * u_prev * c_prev * test_c.dx(0) * dx  # type: ignore
+
+        # D_c * ∂²c/∂x² = + Δt * D_c * ∂c^{n+1}/∂x * ∂φ/∂x * dx
+        diffusion = (
+            self._dt_const * self._c_diffusivity_const * c.dx(0) * test_c.dx(0) * dx  # type: ignore
+        )
+
+        # -k * c = + Δt * k * cⁿ * φ * dx
+        decay = self._dt_const * self._morphogen_decay_const * c_prev * test_c * dx  # type: ignore
+
+        # +s(x) = - Δt * s(x) * φ * dx
+        source = -self._dt_const * gaussian_source * test_c * dx  # type: ignore
+
+        return temporal + advection + diffusion + decay + source
+
     def _calculate_active_stress_field(
         self, rho_prev: Function, m_prev: Function
     ) -> Function:
         """Calculate the active stress field:
 
-        σᵃ = ρ * [A * f(ρ,m) - 1]
-        where f(ρ,m) = [ρ/(1 + α*ρ²)] * [1 + β * sigmoid(m)]
+        σᵃ = ρ * [A * f(ρ, m) - 1]
         """
         # ρ/(1 + α*ρ²)
         density_saturation = rho_prev / (
@@ -438,101 +564,13 @@ class PescoidSimulator:
             self._activity_const * density_saturation * mesoderm_enhancement
         )
 
-        # σᵃ = ρ * (A * f(ρ,m) - 1)
-        active_stress = rho_prev * (active_stress_factor - self._one_const)
+        # σᵃ = ρ * (active_stress_factor)
+        return rho_prev * (active_stress_factor)
 
-        return active_stress
+    def _calculate_strain_rate(self, rho_prev: Function, m_prev: Function) -> Function:
+        """Calculate the strain rate based on the active stress field:
 
-    def _calculate_boundary_velocity_term_from_state(self) -> Constant:
-        """Calculate the boundary velocity term vᵣ(R)/R using the previous
-        state.
-        """
-        _, _, u_fn, _ = self._previous_state.split()
-
-        # Domain characteristics
-        mesh_coords = self._mesh.coordinates()
-        domain_half_length = (mesh_coords.max() - mesh_coords.min()) / 2.0
-
-        # Mesh vertex values for velocity
-        u_vals = u_fn.compute_vertex_values(self._mesh)
-        avg_velocity = float(np.mean(u_vals))
-
-        return Constant(avg_velocity / domain_half_length)
-
-    def _calculate_pressure(
-        self, u: Function, active_stress: Function, boundary_term_const: Constant
-    ) -> Function:
-        """Calculate pressure using the relation:
-
-        P = σᵃ - η * (vᵣ(R)/R - ∇ · v)
-        """
-        # ∇ · v = ∂u/∂x (in 1D)
-        velocity_divergence = u.dx(0)  # type: ignore
-
-        # P = σᵃ - η * (vᵣ(R)/R - ∇ · v)
-        pressure = active_stress - self._eta_const * (
-            boundary_term_const - velocity_divergence
-        )
-
-        return pressure
-
-    def _formulate_active_stress_feedback(
-        self,
-        rho_prev: Function,
-        m_prev: Function,
-        test_m: Function,
-    ) -> Form:
-        """Formulate the active-stress feedback term for mesoderm
-        differentiation:
-
-        Mechanical cue based on active stress:
-          (1/τₘ) * R * (σₐ - σc)
-
-        where σₐ = ρ * A * [ρ/(1 + αρ²)] * [1 + β * sigmoid(m)]
-        """
-        # ρ/(1 + α*ρ²)
-        density_saturation = rho_prev / (
-            self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev  # type: ignore
-        )
-
-        # (tanh((m - m₀)/m₀) + 1)/2
-        mesoderm_sigmoid = (
-            tanh((m_prev - self._m_sensitivity_const) / self._m_sensitivity_const)  # type: ignore
-            + self._one_const
-        ) / self._two_const
-
-        # 1 + β * sigmoid(m)
-        mesoderm_enhancement = self._one_const + self._beta_const * mesoderm_sigmoid
-
-        # ρ * A * density_saturation * (1 + β * sigmoid(m))
-        cue = (
-            rho_prev * self._activity_const * density_saturation * mesoderm_enhancement  # type: ignore
-        )
-
-        # (1/τₘ) * R * (σₐ - σc)
-        return (
-            self._dt_const
-            * (self._one_const / self._tau_m_const)  # type: ignore
-            * self._r_const
-            * (cue - self._sigma_c_const)
-            * test_m
-            * dx
-        )
-
-    def _formulate_strain_rate_feedback(
-        self,
-        u_prev: Function,
-        rho_prev: Function,
-        test_m: Function,
-    ) -> Form:
-        """Formulate the active stress feedback term for mesoderm
-        differentiation:
-
-        Mechanical cue based on strain rate:
-        (1/τₘ) * R * (-η * ∂u/∂x - σc)
-
-        where the strain rate is gated by tissue density using rho_gate
-        function.
+        -ρ_gate * ∂u/∂x
         """
         # ρ_gate = (tanh((ρ - ρ₀)/w) + 1)/2
         rho_gate = self._half_const * (
@@ -540,124 +578,37 @@ class PescoidSimulator:
             + self._one_const
         )
 
-        # -η * ρ_gate * ∂u/∂x
-        cue = -rho_gate * u_prev.dx(0)  # type: ignore
+        # -ρ_gate * ∂u/∂x
+        return -rho_gate * u_prev.dx(0)  # type: ignore
 
-        # (1/τₘ) * R * (cue - σc)
+    def _formulate_mechanical_feedback(
+        self,
+        rho_prev: Function,
+        m_prev: Function,
+        test_m: Function,
+        cue: "str",
+    ) -> Form:
+        """Formulate the physical mechanical feedback term.
+
+        Active stress:
+            (1/τₘ) * R * (cue - σc)
+
+        Strain rate:
+            (1/τₘ) * R * (-ρ_gate * ∂u/∂x - σc)
+        """
+        if cue == "active_stress":
+            mechanical_cue = self._calculate_active_stress_field(rho_prev, m_prev)
+        elif cue == "strain_rate":
+            mechanical_cue = self._calculate_strain_rate(rho_prev, m_prev)
+
         return (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
             * self._r_const
-            * (cue - self._sigma_c_const)  # type: ignore
+            * (mechanical_cue - self._sigma_c_const)  # type: ignore
             * test_m
             * dx
         )
-
-    def _formulate_velocity_equation(
-        self,
-        u: Function,
-        rho_prev: Function,
-        m_prev: Function,
-        test_u: Function,
-    ) -> Form:
-        """Formulate the variational form for tissue velocity (force balance
-        equation):
-
-        rho_gate * Gamma * u + rho_gate * ∂²u/∂x² = ∂σ/∂x
-        """
-        # ρ_gate = (tanh((ρ - ρ₀)/w) + 1)/2
-        rho_gate = self._half_const * (
-            tanh((rho_prev - self._rho_gate_center_const) / self._rho_gate_width_const)  # type: ignore
-            + self._one_const
-        )
-
-        # ∂σ/∂x
-        active_stress_div = self._calculate_stress_divergence(rho_prev, m_prev)
-
-        # ρ_gate * Γ * u
-        friction = rho_gate * self._gamma_const * u * test_u * dx
-
-        # ρ_gate * ∂u/∂x * ∂test_u/∂x
-        viscosity = rho_gate * u.dx(0) * test_u.dx(0) * dx  # type: ignore
-
-        # -∂σ/∂x * test_u
-        force = active_stress_div * test_u * dx  # type: ignore
-
-        # Complete form
-        return friction + viscosity - force
-
-    def _formulate_pressure_corrected_velocity_equation(
-        self,
-        u: Function,
-        rho_prev: Function,
-        m_prev: Function,
-        test_u: Function,
-    ) -> Form:
-        """Formulate the variational form for tissue velocity
-        (pressure-corrected active-polar fluid model):
-
-        η * ∂²u/∂x² + ∂(σᵃ − P)/∂x = 0
-        """
-        # σᵃ
-        active_stress = self._calculate_active_stress_field(rho_prev, m_prev)
-
-        # (σᵃ − P)/η = v_r(R)/R − ∂u/∂x
-        boundary_term_const = self._calculate_boundary_velocity_term_from_state()
-        pressure = self._calculate_pressure(u, active_stress, boundary_term_const)
-
-        # (σᵃ - P)
-        corrected_stress = active_stress - pressure  # type: ignore
-
-        # η * ∂u/∂x * ∂test_u/∂x
-        viscous_term = self._eta_const * u.dx(0) * test_u.dx(0) * dx  # type: ignore
-
-        # −(σᵃ − P) * ∂test_u/∂x
-        stress_term = -corrected_stress * test_u.dx(0) * dx  # type: ignore
-
-        # Complete form
-        return viscous_term + stress_term
-
-    def _formulate_morphogen_equation(
-        self,
-        c: Function,
-        c_prev: Function,
-        u_prev: Function,
-        test_c: Function,
-    ) -> Form:
-        """Formulate the variational form for morphogen concentration.
-
-        Equation: ∂c/∂t + ∂x(vc) = s(x) - kc + Dc ∂²c/∂x²
-        """
-        # s(x) = (1/(σ√(2π))) * exp(-x²/(2σ²))
-        sigma = float(self.params.gaussian_width)
-        normalization = 1.0 / (sigma * np.sqrt(2 * np.pi))
-        gaussian_expr = f"{normalization} * exp(-pow(x[0], 2) / (2 * pow({sigma}, 2)))"
-        gaussian_source = Expression(gaussian_expr, degree=2)
-
-        # ∂c/∂t
-        temporal = (c - c_prev) * test_c * dx  # type: ignore
-
-        # -v∂c/∂x
-        advec_convective = -self._dt_const * u_prev * c_prev.dx(0) * test_c * dx  # type: ignore
-
-        # -c∂v/∂x
-        advec_divergence = -self._dt_const * c_prev * u_prev.dx(0) * test_c * dx  # type: ignore
-
-        # -∂x(vc) = -(v∂c/∂x + c∂v/∂x)
-        advection = advec_convective + advec_divergence
-
-        # +Dc * ∂²c/∂x²
-        diffusion = (
-            self._dt_const * self._c_diffusivity_const * c.dx(0) * test_c.dx(0) * dx  # type: ignore
-        )
-
-        # -k * c
-        decay = -self._dt_const * self._morphogen_decay_const * c_prev * test_c * dx  # type: ignore
-
-        # +s(x)
-        source = self._dt_const * gaussian_source * test_c * dx  # type: ignore
-
-        return temporal + advection + diffusion + decay + source
 
     def _calculate_stress_divergence(
         self, rho_prev: Function, m_prev: Function
@@ -691,17 +642,56 @@ class PescoidSimulator:
         # ∂σ/∂x
         return active_stress.dx(0)
 
+    def _calculate_boundary_velocity_term_from_state(self) -> Constant:
+        """Calculate the boundary velocity term using the previous state:
+
+        vᵣ(R)/R
+        """
+        _, _, u_fn, _ = self._previous_state.split()
+
+        # Get R from mesh coordinates
+        mesh_coords = self._mesh.coordinates()
+        domain_half_length = (mesh_coords.max() - mesh_coords.min()) / 2.0
+
+        # Mesh vertex values
+        u_vals = u_fn.compute_vertex_values(self._mesh)
+
+        # Get the average velocity at the boundary (R)
+        boundary_idxs = np.where(np.isclose(mesh_coords, mesh_coords.max(), atol=1e-8))[
+            0
+        ]
+        u_at_boundary = u_vals[boundary_idxs].mean()
+
+        return Constant(u_at_boundary / domain_half_length)
+
+    def _calculate_pressure(
+        self, u: Function, active_stress: Function, boundary_term_const: Constant
+    ) -> Function:
+        """Calculate pressure using the relation:
+
+        P = σᵃ - η * (vᵣ(R)/R - ∇ · v)
+        """
+        # ∇ · v = ∂u/∂x (in 1D)
+        velocity_divergence = u.dx(0)  # type: ignore
+
+        # P = σᵃ - η * (vᵣ(R)/R - ∇ · v)
+        pressure = active_stress - self._eta_const * (
+            boundary_term_const - velocity_divergence
+        )
+
+        return pressure
+
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""
         lhs_form, rhs_form = self._forms
         solution = Function(self._mixed_function_space)
         solve(lhs_form == rhs_form, solution)
 
-        # split old and new states
+        # Split old and new states
         rho_old, m_old, u_old, c_old = self._previous_state.split(deepcopy=True)  # type: ignore
         rho_new, m_new, u_new, c_new = solution.split(deepcopy=True)  # type: ignore
 
-        # vector differences
+        # Get vector differences
         delta_rho = float(
             norm(rho_new.vector().get_local() - rho_old.vector().get_local())
         )
@@ -709,7 +699,6 @@ class PescoidSimulator:
         delta_u = float(norm(u_new.vector().get_local() - u_old.vector().get_local()))
         delta_c = float(norm(c_new.vector().get_local() - c_old.vector().get_local()))
 
-        # log through the existing API (names you already use)
         self.logger.log_norm(
             step_idx=step_idx,
             rho_norm=delta_rho,
