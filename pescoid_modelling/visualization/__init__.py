@@ -1,6 +1,6 @@
 """Visualization module init."""
 
-from typing import Dict
+from typing import Any, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,7 +28,7 @@ def _set_matplotlib_publication_parameters() -> None:
     )
 
 
-def _load_simulation_data(file_path: str) -> Dict[str, np.ndarray]:
+def _load_simulation_data(file_path: str) -> Dict[str, Any]:
     """Load simulation NPZ."""
     data = np.load(file_path)
     sim = {}

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-"""Code to plot L2 euclidean update norm of the solution vector for each
-coupled equation.
-"""
+"""Plot velocity profile of pescoid simulations."""
 
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
@@ -14,7 +12,7 @@ from pescoid_modelling.visualization import _load_simulation_data
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
 
-def plot_flow_profile(
+def plot_velocity_profile(
     sim_data: dict,
     time_points: list[float] | None = None,
     max_curves: int | None = None,
@@ -79,7 +77,7 @@ if __name__ == "__main__":
     sim = _load_simulation_data("simulation_results.npz")
     n_snap = len(sim["time"])
     _set_matplotlib_publication_parameters()
-    fig = plot_flow_profile(sim)
+    fig = plot_velocity_profile(sim)
 
-    fig.savefig("flow_profiles.png", dpi=450, bbox_inches="tight")
+    fig.savefig("velocity_profile.svg", bbox_inches="tight")
     plt.close(fig)

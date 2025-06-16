@@ -59,7 +59,6 @@ def load_trajectory_data(
         trajectory_data["time"] = (
             trajectory_data["time"] * 30.0
         )  # Convert time to minutes
-        trajectory_data["mesoderm_fraction"] = data["mesoderm_fraction"]
 
     return trajectory_data
 
