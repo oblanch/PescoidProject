@@ -34,7 +34,9 @@ class ReferenceTrajectories:
 def _require_exponential_moving_average(
     ema_dict: MutableMapping[str, Optional[float]] | None = None,
 ) -> MutableMapping[str, Optional[float]]:
-    """Ensure an EMA dictionary is available, creating a new one if necessary."""
+    """Ensure an EMA dictionary is available, creating a new one if
+    necessary.
+    """
     if ema_dict is None:
         ema_dict = defaultdict(lambda: None)
     return ema_dict
@@ -118,6 +120,17 @@ def _ema_update(
     return ema_dict[tag]  # type: ignore
 
 
+def _compute_pearson_correlation(
+    sim: np.ndarray,
+    ref: np.ndarray,
+    eps: float = 1e-6,
+) -> float:
+    """Compute the Pearson correlation between sim and ref."""
+    if np.std(sim) < eps or np.std(ref) < eps:
+        return 0.0
+    return float(np.corrcoef(sim, ref)[0, 1])
+
+
 def _compute_dynamic_weights(
     losses: Dict[str, float],
     ema_dict: MutableMapping[str, Optional[float]],
@@ -150,6 +163,8 @@ def optimization_objective(
     optimization_target: str = "tissue_and_mesoderm",
     tissue_std: Optional[float] = None,
     mesoderm_std: Optional[float] = None,
+    alpha: float = 0.9,
+    beta: float = 0.1,
     *,
     ema_dict: MutableMapping[str, Optional[float]] | None = None,
 ) -> float:
@@ -187,24 +202,17 @@ def optimization_objective(
     try:
         l2_tissue = None
         l2_meso = None
+        tissue_correlation: float = 0.0
+        mesoderm_correlation: float = 0.0
 
         if tissue_std is None or mesoderm_std is None:
             tissue_std, mesoderm_std = _calculate_normalization_scales(
                 experimental_data
             )
 
-        L_sim_on_exp = _interpolate_simulation_to_experimental_timepoints(
-            t_sim, L_sim, experimental_data.time, minutes_per_generation
-        )
-        M_sim_on_exp = _interpolate_simulation_to_experimental_timepoints(
-            t_sim, M_sim, experimental_data.time, minutes_per_generation
-        )
-
-        # Get reference values
         sim_time_minutes = t_sim * minutes_per_generation
         if not _check_simulation_length(sim_time_minutes, experimental_data):
             return _invalid_fitness()
-
         valid_exp_mask = experimental_data.time <= sim_time_minutes[-1]
 
         if optimization_target in ["tissue", "tissue_and_mesoderm"]:
@@ -217,6 +225,10 @@ def optimization_objective(
                 exp_values=exp_tissue_valid,
                 normalization_scale=tissue_std,
             )
+            tissue_correlation = _compute_pearson_correlation(
+                sim=L_sim_on_exp, ref=exp_tissue_valid
+            )
+
         if optimization_target in ["mesoderm", "tissue_and_mesoderm"]:
             M_sim_on_exp = _interpolate_simulation_to_experimental_timepoints(
                 t_sim, M_sim, experimental_data.time, minutes_per_generation
@@ -227,20 +239,25 @@ def optimization_objective(
                 exp_values=exp_meso_valid,
                 normalization_scale=mesoderm_std,
             )
+            mesoderm_correlation = _compute_pearson_correlation(
+                sim=M_sim_on_exp, ref=exp_meso_valid
+            )
 
         if optimization_target == "tissue":
             assert l2_tissue is not None
-            return l2_tissue
-        elif optimization_target == "mesoderm":
+            return alpha * l2_tissue + beta * (1.0 - tissue_correlation)
+
+        if optimization_target == "mesoderm":
             assert l2_meso is not None
-            return l2_meso
-        elif optimization_target == "tissue_and_mesoderm":
-            assert l2_tissue is not None and l2_meso is not None
-            losses = {"tissue": l2_tissue, "mesoderm": l2_meso}
-            weights = _compute_dynamic_weights(losses=losses, ema_dict=ema_dict)  # type: ignore
-            return weights["tissue"] * l2_tissue + weights["mesoderm"] * l2_meso
-        else:
-            raise ValueError(f"Invalid optimization_target: {optimization_target}")
+            return alpha * l2_meso + beta * (1.0 - mesoderm_correlation)
+
+        assert l2_tissue is not None and l2_meso is not None
+        losses = {"tissue": l2_tissue, "mesoderm": l2_meso}
+        weights = _compute_dynamic_weights(losses=losses, ema_dict=ema_dict)  # type: ignore
+        l2_combined = weights["tissue"] * l2_tissue + weights["mesoderm"] * l2_meso
+        corr_loss = (1.0 - tissue_correlation) + (1.0 - mesoderm_correlation)
+
+        return alpha * l2_combined + beta * corr_loss
 
     except ValueError as e:
         raise ValueError(

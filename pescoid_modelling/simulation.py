@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import Dict, Tuple
 
-from dolfin import assemble  # type: ignore
 from dolfin import assign  # type: ignore
 from dolfin import Constant  # type: ignore
 from dolfin import dx  # type: ignore
@@ -21,7 +20,6 @@ from dolfin import rhs  # type: ignore
 from dolfin import set_log_level  # type: ignore
 from dolfin import solve  # type: ignore
 from dolfin import split  # type: ignore
-from dolfin import sqrt  # type: ignore
 from dolfin import TestFunctions  # type: ignore
 from dolfin import TrialFunctions  # type: ignore
 import numpy as np
@@ -368,8 +366,6 @@ class PescoidSimulator:
           - Δt * (1/τₘ) * R * [mech_cueⁿ] * φ * dx
           - Δt * (1/τₘ) * R_c * cⁿ * φ * dx = 0
         """
-        feedback_mode = getattr(self.params, "feedback_mode", "strain_rate")
-
         # ∂m/∂t = (m^{n+1} - mⁿ) * φ * dx
         temporal = (m - m_prev) * test_m * dx  # type: ignore
 
@@ -384,14 +380,12 @@ class PescoidSimulator:
             * dx
         )
 
-        if feedback_mode == "strain_rate":
-            cue = "strain_rate"
-        else:
-            cue = "active_stress"
-
         # -(1/τₘ) * R * [mech_cueⁿ] = -Δt * (1/τₘ) * R * [mech_cueⁿ] * φ * dx
         mechanical_feedback = self._formulate_mechanical_feedback(
-            rho_prev, m_prev, test_m, cue
+            rho_prev=rho_prev,
+            m_prev=m_prev,
+            test_m=test_m,
+            cue=getattr(self.params, "feedback_mode"),
         )
 
         # -(1/τₘ) * R_c * cⁿ = -Δt * (1/τₘ) * R_c * cⁿ * φ * dx
@@ -409,6 +403,7 @@ class PescoidSimulator:
 
         # F * uⁿ * ∂mⁿ/∂x = +Δt * F * uⁿ * ∂xmⁿ * φ * dx
         advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * test_m * dx  # type: ignore
+        # advection = self._dt_const * self._flow_const * u_prev * m.dx(0) * test_m * dx  # type: ignore
 
         return (
             temporal
@@ -761,7 +756,6 @@ class PescoidSimulator:
         self,
         m_vals: np.ndarray,
         edge_idx: float | None,
-        smoothing_factor: float | None = None,
     ) -> float:
         """Calculate the fraction of tissue that is expressing mesoderm using a
         smooth activation function.
@@ -773,11 +767,7 @@ class PescoidSimulator:
         if tissue_mesoderm.size == 0:
             return 0.0
 
-        if smoothing_factor is None:
-            return (tissue_mesoderm > 0).mean()
-
-        smooth_activation = 1.0 / (1.0 + np.exp(-tissue_mesoderm / smoothing_factor))
-        return smooth_activation.mean()
+        return (tissue_mesoderm > 0.0).mean()
 
     def _compute_mesoderm_average(self, m_vals: np.ndarray, edge_idx: int) -> float:
         """Get all-tissue mesoderm average."""

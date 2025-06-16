@@ -62,7 +62,7 @@ pescoid optimize \
 ```
 
 **Optional arguments:**
-* `--optimization_target [TARGET]`: Choose between `["tissue", "mesoderm", "tissue_and_mesoderm"]`. Adjusts the fitness objective to optimize for individual trajectories or both.
+* `--optimization_target [TARGET]`: Choose between `["tissue", "mesoderm", "tissue_and_mesoderm"]`. Adjusts the fitness objective to optimize for individual trajectories or both. Defaults to `tissue_and_mesoderm`.
 
 <br>
 

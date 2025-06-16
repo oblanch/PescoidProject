@@ -188,6 +188,7 @@ def _build_optimization_parser(
         name="optimize",
         help_msg="Run CMA-ES to optimize PDE parameters.",
         func=func,
+        optimize_args=True,
     )
 
 

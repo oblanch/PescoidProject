@@ -4,7 +4,7 @@ simulation:
   domain_length: 10.0
   dx_interval: 0.001
   diffusivity: 8.980959167540726e-05
-  m_diffusivity: 1e-3
+  m_diffusivity: 2e-3
   tau_m: 7.0
   flow: 0.3
   activity: 0.8177242457000748
@@ -14,8 +14,8 @@ simulation:
   r: 1.4355095309012016
   rho_sensitivity: 0.0
   m_sensitivity: 0.09628726199197271
-  c_diffusivity: 5e-4
+  c_diffusivity: 4e-4
   morphogen_decay: 0.05
-  gaussian_width: 0.1
-  morphogen_feedback: 0.5
+  gaussian_width: 0.15
+  morphogen_feedback: 1.0
   feedback_mode: active_stress

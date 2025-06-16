@@ -17,6 +17,8 @@ _ORDER = [
     "beta",
     "r",
     "m_sensitivity",
+    "c_diffusivity",
+    "morphogen_feedback",
 ]
 
 
