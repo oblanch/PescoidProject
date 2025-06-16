@@ -12,6 +12,8 @@ from pescoid_modelling.utils.config import _load_yaml
 from pescoid_modelling.utils.config import _ORDER
 from pescoid_modelling.utils.parameter_scaler import ParamScaler
 
+_LOG_AXES_PARAMS = {"diffusivity", "gamma", "m_sensitivity"}
+
 
 def get_physical_cores() -> int:
     """Return physical core count, subtracted by one to account for the main
@@ -110,14 +112,13 @@ def _vecs_to_simulation_config(vec_str: str, config_path: Union[str, Path]) -> N
     config = _load_yaml(config_path)
     cma_params = config.get("cma")
 
-    log_axes = {"diffusivity", "gamma", "m_sensitivity"}
     lower_vec = [float(cma_params["bounds"]["lower"][k]) for k in _ORDER]  # type: ignore
     upper_vec = [float(cma_params["bounds"]["upper"][k]) for k in _ORDER]  # type: ignore
 
     scaler = ParamScaler(
         lower=lower_vec,
         upper=upper_vec,
-        log_mask=[name in log_axes for name in _ORDER],
+        log_mask=[name in _LOG_AXES_PARAMS for name in _ORDER],
     )
     normalized = [float(x) for x in vec_str.strip().split()]
     physical = scaler.to_physical(normalized)
@@ -141,6 +142,10 @@ def _vecs_to_simulation_config(vec_str: str, config_path: Union[str, Path]) -> N
         f"  r: {params['r']}",
         "  rho_sensitivity: 0.0",
         f"  m_sensitivity: {params['m_sensitivity']}",
+        f"  c_diffusivity: {params['c_diffusivity']}",
+        "  morphogen_decay: 0.05",
+        "  gaussian_width: 0.15",
+        f"  morphogen_feedback: {params['morphogen_feedback']}",
         "  feedback_mode: active_stress",
     ]
 

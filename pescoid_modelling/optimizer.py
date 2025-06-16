@@ -17,6 +17,7 @@ from pescoid_modelling.objective import ReferenceTrajectories
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import _ORDER
 from pescoid_modelling.utils.config import SimulationParams
+from pescoid_modelling.utils.helpers import _LOG_AXES_PARAMS
 from pescoid_modelling.utils.helpers import get_physical_cores
 from pescoid_modelling.utils.parameter_scaler import ParamScaler
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
@@ -145,11 +146,10 @@ class CMAOptimizer:
         if bounds is None:
             raise ValueError("Bounds must be provided for normalization")
 
-        log_axes = {"diffusivity", "gamma", "m_sensitivity"}
         self.scaler = ParamScaler(
             lower=bounds[0],
             upper=bounds[1],
-            log_mask=[name in log_axes for name in _ORDER],
+            log_mask=[name in _LOG_AXES_PARAMS for name in _ORDER],
         )
 
         x0_norm = self.scaler.to_normalized(x0)
