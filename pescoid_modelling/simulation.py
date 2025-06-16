@@ -810,6 +810,12 @@ class PescoidSimulator:
         m_avg = self._compute_mesoderm_average(m_vals, edge_idx)
         stress_vals = self._compute_stress(rho_vals, m_vals)
 
+        if edge_idx < len(c_vals):
+            morphogen_edge = c_vals[edge_idx]
+        else:
+            morphogen_edge = 0.0
+        c_gradient = np.gradient(c_vals, x_coords)
+
         self.logger.log_snapshot(
             step_idx=step_idx,
             current_time=current_time,
@@ -827,6 +833,9 @@ class PescoidSimulator:
             c_vals=c_vals,
             c_center=c_vals[self.half_domain_idx],
             max_c=c_vals.max(),
+            morphogen_edge=morphogen_edge,
+            morphogen_gradient_max=np.max(np.abs(c_gradient)),
+            morphogen_gradient_center=c_gradient[self.half_domain_idx],
         )
 
     def save(self, file: str | Path) -> None:

@@ -76,12 +76,17 @@ class SimulationLogger:
         self.morphogen_center = np.zeros(self.max_snapshots)
         self.max_morphogen = np.zeros(self.max_snapshots)
         self.morphogen_mean = np.zeros(self.max_snapshots)
+        self.morphogen_edge = np.zeros(self.max_snapshots)
+        self.morphogen_gradient_max = np.zeros(self.max_snapshots)
+        self.morphogen_gradient_center = np.zeros(self.max_snapshots)
 
         # norms for PDEs
         self.rho_norm = np.zeros(num_steps)
         self.m_norm = np.zeros(num_steps)
         self.u_norm = np.zeros(num_steps)
         self.c_norm = np.zeros(num_steps)
+
+        #
 
     def _should_log(self, step_idx: int) -> bool:
         """Determines if the current step should be logged."""
@@ -120,6 +125,9 @@ class SimulationLogger:
         c_vals,
         c_center,
         max_c,
+        morphogen_edge,
+        morphogen_gradient_max,
+        morphogen_gradient_center,
         x_coords=None,
     ):
         """Log a snapshot of simulation data."""
@@ -142,6 +150,13 @@ class SimulationLogger:
         self.morphogen_center[self._snapshot_count] = float(c_center)
         self.max_morphogen[self._snapshot_count] = float(max_c)
         self.morphogen_mean[self._snapshot_count] = float(c_vals.mean())
+        self.morphogen_edge[self._snapshot_count] = float(morphogen_edge)
+        self.morphogen_gradient_max[self._snapshot_count] = float(
+            morphogen_gradient_max
+        )
+        self.morphogen_gradient_center[self._snapshot_count] = float(
+            morphogen_gradient_center
+        )
 
         # 2D arrays
         self.density[self._snapshot_count] = rho_vals
@@ -168,6 +183,13 @@ class SimulationLogger:
             self.morphogen_center = self.morphogen_center[: self._snapshot_count]
             self.max_morphogen = self.max_morphogen[: self._snapshot_count]
             self.morphogen_mean = self.morphogen_mean[: self._snapshot_count]
+            self.morphogen_edge = self.morphogen_edge[: self._snapshot_count]
+            self.morphogen_gradient_max = self.morphogen_gradient_max[
+                : self._snapshot_count
+            ]
+            self.morphogen_gradient_center = self.morphogen_gradient_center[
+                : self._snapshot_count
+            ]
 
             # 2D arrays
             self.density = self.density[: self._snapshot_count]
@@ -195,6 +217,9 @@ class SimulationLogger:
             "morphogen_mean": self.morphogen_mean,
             "morphogen_center": self.morphogen_center,
             "max_morphogen": self.max_morphogen,
+            "morphogen_edge": self.morphogen_edge,
+            "morphogen_gradient_max": self.morphogen_gradient_max,
+            "morphogen_gradient_center": self.morphogen_gradient_center,
             # Spatial metrics
             "density": self.density,
             "mesoderm": self.mesoderm,
