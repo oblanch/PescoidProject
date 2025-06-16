@@ -79,7 +79,7 @@ def plot_mesoderm_metrics(
     sim_data: Dict[str, Any], minutes_per_generation: float = 30.0
 ) -> Figure:
     """Plot mesoderm metrics: mean, center, average, fraction, max."""
-    fig, axes = plt.subplots(2, 3, figsize=(5, 2.5))
+    fig, axes = plt.subplots(2, 2, figsize=(3.8, 2.5))
 
     # Convert time to minutes
     time_minutes = sim_data["time"] * minutes_per_generation
@@ -114,21 +114,6 @@ def plot_mesoderm_metrics(
     axes[0, 1].set_title("Mesoderm center")
     axes[0, 1].margins(x=0, y=0.025)
 
-    # Mesoderm average
-    axes[0, 2].plot(
-        time_minutes,
-        sim_data["mesoderm_average"],
-        color="tab:brown",
-        linewidth=0.5,
-        marker="o",
-        markersize=0.5,
-        markevery=5,
-    )
-    axes[0, 2].set_xlabel("Time (minutes)")
-    axes[0, 2].set_ylabel("Mesoderm average")
-    axes[0, 2].set_title("Mesoderm average")
-    axes[0, 2].margins(x=0, y=0.025)
-
     # Mesoderm fraction
     axes[1, 0].plot(
         time_minutes,
@@ -158,8 +143,6 @@ def plot_mesoderm_metrics(
     axes[1, 1].set_ylabel("Max mesoderm")
     axes[1, 1].set_title("Max mesoderm")
     axes[1, 1].margins(x=0, y=0.025)
-
-    axes[1, 2].axis("off")
 
     plt.tight_layout()
     return fig
