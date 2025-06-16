@@ -40,22 +40,27 @@ def _load_simulation_data(file_path: str) -> Dict[str, Any]:
     sim["stress"] = np.flip(data["stress"], axis=1)
     sim["morphogen"] = np.flip(data["morphogen"], axis=1)
 
-    # 1D fields
+    # Time and tissue properties
     sim["time"] = data["time"]
     sim["tissue_size"] = data["tissue_size"]
     sim["boundary_positions"] = data["boundary_positions"]
     sim["boundary_times"] = data["boundary_times"]
     sim["boundary_velocity"] = data["boundary_velocity"]
 
+    # Mesoderm
     sim["mesoderm_mean"] = data["mesoderm_mean"]
     sim["mesoderm_center"] = data["mesoderm_center"]
     sim["mesoderm_average"] = data["mesoderm_average"]
     sim["mesoderm_fraction"] = data["mesoderm_fraction"]
     sim["max_mesoderm"] = data["max_mesoderm"]
 
+    # Morphogen
     sim["morphogen_mean"] = data["morphogen_mean"]
     sim["morphogen_center"] = data["morphogen_center"]
     sim["max_morphogen"] = data["max_morphogen"]
+    sim["morphogen_edge"] = data["morphogen_edge"]
+    sim["morphogen_gradient_max"] = data["morphogen_gradient_max"]
+    sim["morphogen_gradient_center"] = data["morphogen_gradient_center"]
 
     # Coordinates
     sim["x_coords"] = data["x_coords"]
