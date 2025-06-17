@@ -16,6 +16,7 @@ class SimulationLogger:
         ...     num_steps=num_steps,
         ...     mesh_size=mesh_size,
         ...     snapshot_interval=snapshot_interval,
+        ...     log_residuals=False,
         ... )
 
         # Log a snapshot
@@ -46,11 +47,13 @@ class SimulationLogger:
         num_steps: int,
         mesh_size: int,
         snapshot_interval: int = SNAPSHOT_EVERY_N_STEPS,
+        log_residuals: bool = False,
     ) -> None:
         """Initialize the logger."""
         self.snapshot_interval = snapshot_interval
         self.max_snapshots = num_steps // snapshot_interval + 1
         self.mesh_size = mesh_size
+        self.log_residuals = log_residuals
         self._snapshot_count = 0
         self._step_counter = 0
 
@@ -80,11 +83,18 @@ class SimulationLogger:
         self.morphogen_gradient_max = np.zeros(self.max_snapshots)
         self.morphogen_gradient_center = np.zeros(self.max_snapshots)
 
-        # norms for PDEs
+        # norms
         self.rho_norm = np.zeros(num_steps)
         self.m_norm = np.zeros(num_steps)
         self.u_norm = np.zeros(num_steps)
         self.c_norm = np.zeros(num_steps)
+
+        # residuals
+        if self.log_residuals:
+            self.rho_residual = np.zeros(num_steps)
+            self.m_residual = np.zeros(num_steps)
+            self.u_residual = np.zeros(num_steps)
+            self.c_residual = np.zeros(num_steps)
 
         #
 
@@ -106,6 +116,21 @@ class SimulationLogger:
         self.u_norm[step_idx] = u_norm
         self.c_norm[step_idx] = c_norm
         self._step_counter += 1
+
+    def log_residual(
+        self,
+        step_idx: int,
+        rho_residual: float,
+        m_residual: float,
+        u_residual: float,
+        c_residual: float,
+    ) -> None:
+        """Store residuals of each equation for this step."""
+        if self.log_residuals:
+            self.rho_residual[step_idx] = rho_residual
+            self.m_residual[step_idx] = m_residual
+            self.u_residual[step_idx] = u_residual
+            self.c_residual[step_idx] = c_residual
 
     def log_snapshot(
         self,
@@ -238,6 +263,17 @@ class SimulationLogger:
                 "c_norm": self.c_norm[: self._step_counter],
             }
         )
+
+        if self.log_residuals:
+            base.update(
+                {
+                    "rho_residual": self.rho_residual[: self._step_counter],
+                    "m_residual": self.m_residual[: self._step_counter],
+                    "u_residual": self.u_residual[: self._step_counter],
+                    "c_residual": self.c_residual[: self._step_counter],
+                }
+            )
+
         return base
 
     def _normalize_mesoderm_data(self, mesoderm_data: np.ndarray) -> np.ndarray:

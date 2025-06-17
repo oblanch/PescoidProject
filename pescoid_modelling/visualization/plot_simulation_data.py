@@ -308,41 +308,88 @@ def plot_spatial_fields(
     return fig
 
 
-def plot_update_norms(
-    sim_data: Dict[str, Any], minutes_per_generation: float = 30.0
+def plot_update_and_residual_norms(
+    sim_data: Dict[str, Any],
+    minutes_per_generation: float = 30.0,
 ) -> Figure:
-    """Plot update norms: rho_norm, m_norm, u_norm, c_norm."""
-    fig, ax = plt.subplots(1, 1, figsize=(3.85, 1.75))
-    dt = sim_data.get("dt", [0.01])[0] if "dt" in sim_data else 0.01
-    t_norm = np.arange(len(sim_data["rho_norm"])) * dt * minutes_per_generation
+    """Plot update norms (Δ·) and residual norms (r·)."""
+    if "dt" in sim_data:
+        dt_raw = sim_data["dt"]
+        dt = float(dt_raw[0]) if hasattr(dt_raw, "__len__") else float(dt_raw)
+    elif "time" in sim_data and len(sim_data["time"]) > 1:
+        dt = float(np.diff(sim_data["time"][:2]).mean())
+    else:
+        dt = 0.01
 
-    colors = ["tab:blue", "tab:red", "tab:green", "tab:purple"]
-    labels = ["Density ‖Δρ‖₂", "Mesoderm ‖Δm‖₂", "Velocity ‖Δu‖₂", "Morphogen ‖Δc‖₂"]
-    fields = ["rho_norm", "m_norm", "u_norm", "c_norm"]
+    update_fields = [
+        ("rho_norm", "Density ‖Δρ‖₂"),
+        ("m_norm", "Mesoderm ‖Δm‖₂"),
+        ("u_norm", "Velocity ‖Δu‖₂"),
+        ("c_norm", "Morphogen ‖Δc‖₂"),
+    ]
+    residual_fields = [
+        ("rho_residual", "Density ‖rₚ‖₂"),
+        ("m_residual", "Mesoderm ‖rₘ‖₂"),
+        ("u_residual", "Velocity ‖rᵤ‖₂"),
+        ("c_residual", "Morphogen ‖rc‖₂"),
+    ]
+
+    lengths = [
+        len(sim_data[f]) for f, _ in (update_fields + residual_fields) if f in sim_data
+    ]
+    if not lengths:
+        raise ValueError("No norm arrays found in sim_data.")
+    N = max(lengths)
+    t = np.arange(N) * dt * minutes_per_generation
+
+    fig, (ax_up, ax_res) = plt.subplots(
+        nrows=2, ncols=1, sharex=True, figsize=(3.95, 3.25)
+    )
+    cmap = plt.get_cmap("viridis")
+    colors = [cmap(v) for v in np.linspace(0, 1, 4)]
     linestyles = ["-", "--", "-.", ":"]
     markers = ["o", "s", "^", "d"]
+    lw, ms = 0.5, 1
+    mk_every = max(1, N // 20)
 
-    for field, label, color, ls, marker in zip(
-        fields, labels, colors, linestyles, markers
-    ):
-        if len(sim_data[field]) > 0:
-            mk = max(1, len(t_norm) // 20)
-            ax.semilogy(
-                t_norm,
-                sim_data[field],
-                label=label,
-                color=color,
-                linestyle=ls,
-                linewidth=0.5,
-                marker=marker,
-                markevery=mk,
-                markersize=1,
-            )
+    for idx, (fld, lbl) in enumerate(update_fields):
+        arr = sim_data.get(fld)
+        if arr is None or len(arr) == 0:
+            continue
+        ax_up.semilogy(
+            t[: len(arr)],
+            arr,
+            label=lbl,
+            color=colors[idx],
+            linestyle=linestyles[idx],
+            linewidth=lw,
+            marker=markers[idx],
+            markevery=mk_every,
+            markersize=ms,
+        )
+    ax_up.set_ylabel("Update L₂ norm")
+    ax_up.legend(frameon=False, loc="upper right", bbox_to_anchor=(1.5, 1))
+    ax_up.margins(x=0, y=0)
 
-    ax.set_xlabel("Time (minutes)")
-    ax.set_ylabel("Update L₂ Norm")
-    ax.legend(frameon=False, loc="upper right", bbox_to_anchor=(1.5, 1))
-    ax.margins(x=0, y=0)
+    for idx, (fld, lbl) in enumerate(residual_fields):
+        arr = sim_data.get(fld)
+        if arr is None or len(arr) == 0:
+            continue
+        ax_res.semilogy(
+            t[: len(arr)],
+            arr,
+            label=lbl,
+            color=colors[idx],
+            linestyle=linestyles[idx],
+            linewidth=lw,
+            marker=markers[idx],
+            markevery=mk_every,
+            markersize=ms,
+        )
+    ax_res.set_xlabel("Time (minutes)")
+    ax_res.set_ylabel("Residual L₂ norm")
+    ax_res.legend(frameon=False, loc="upper right", bbox_to_anchor=(1.5, 1))
+    ax_res.margins(x=0, y=0)
 
     plt.tight_layout()
     return fig
@@ -374,7 +421,7 @@ def plot_all_diagnostics(
     fig4.savefig(f"{save_prefix}_spatial_fields.svg", bbox_inches="tight")
     plt.close(fig4)
 
-    fig5 = plot_update_norms(sim_data, minutes_per_generation)
+    fig5 = plot_update_and_residual_norms(sim_data, minutes_per_generation)
     fig5.savefig(f"{save_prefix}_update_norms.svg", bbox_inches="tight")
     plt.close(fig5)
 

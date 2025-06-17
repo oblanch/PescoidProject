@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Dict, Tuple
 
+from dolfin import assemble  # type: ignore
 from dolfin import assign  # type: ignore
 from dolfin import Constant  # type: ignore
 from dolfin import dx  # type: ignore
@@ -55,6 +56,7 @@ class PescoidSimulator:
       current_state: Function representing the current state of the system.
       forms: Variational forms for the PDEs.
       logger: Logger for recording simulation results.
+      log_residuals: Flag to enable residual logging (computationally expensive).
 
     Examples::
       # Initialize the simulator with parameters and work directory
@@ -76,10 +78,12 @@ class PescoidSimulator:
         parameters: SimulationParams,
         work_dir: str | Path,
         corrected_pressure: bool = False,
+        log_residuals: bool = False,
     ) -> None:
         """Initialize the simulator class."""
         self.params = parameters
         self.corrected_pressure = corrected_pressure
+        self.log_residuals = log_residuals
         self.aborted: bool = False
 
         self.work_dir = Path(work_dir)
@@ -199,6 +203,7 @@ class PescoidSimulator:
             num_steps=self.num_steps,
             mesh_size=len(self._mesh.coordinates().flatten()),
             snapshot_interval=SNAPSHOT_EVERY_N_STEPS,
+            log_residuals=self.log_residuals,
         )
         self.logger.x_coordinates = self._mesh.coordinates().flatten().copy()
 
@@ -256,21 +261,24 @@ class PescoidSimulator:
         if self._previous_state is None or self._current_state is None:
             raise RuntimeError("Function states must be set up before building forms.")
 
-        self._forms = self._formulate_variational_problem()
+        self._build_individual_forms()
+        total_form = self._rho_form + self._m_form + self._u_form + self._c_form
+        self._forms = lhs(total_form), rhs(total_form)  # type: ignore
 
-    def _formulate_variational_problem(self) -> Tuple[Expression, Expression]:
-        """Build the variational forms for the PDEs."""
+    def _build_individual_forms(self) -> None:
+        """Build individual variational forms for the system."""
         rho_prev, m_prev, u_prev, c_prev = split(self._previous_state)  # type: ignore
         rho, m, u, c = TrialFunctions(self._mixed_function_space)  # type: ignore
         test_rho, test_m, test_u, test_c = TestFunctions(self._mixed_function_space)  # type: ignore
 
-        F_rho = self._formulate_density_equation(
+        self._rho_form = self._formulate_density_equation(
             rho=rho,  # type: ignore
             rho_prev=rho_prev,  # type: ignore
             u_prev=u_prev,
             test_rho=test_rho,  # type: ignore
         )
-        F_m = self._formulate_mesoderm_equation(
+
+        self._m_form = self._formulate_mesoderm_equation(
             m=m,
             m_prev=m_prev,
             rho_prev=rho_prev,  # type: ignore
@@ -280,29 +288,26 @@ class PescoidSimulator:
         )
 
         if self.corrected_pressure:
-            F_u = self._formulate_pressure_corrected_velocity_equation(
+            self._u_form = self._formulate_pressure_corrected_velocity_equation(
                 u=u,
                 rho_prev=rho_prev,  # type: ignore
                 m_prev=m_prev,
                 test_u=test_u,
             )
         else:
-            F_u = self._formulate_velocity_equation(
+            self._u_form = self._formulate_velocity_equation(
                 u=u,
                 rho_prev=rho_prev,  # type: ignore
                 m_prev=m_prev,
                 test_u=test_u,
             )
 
-        F_c = self._formulate_morphogen_equation(
+        self._c_form = self._formulate_morphogen_equation(
             c=c,
             c_prev=c_prev,
             u_prev=u_prev,
             test_c=test_c,
         )
-
-        total_form = F_rho + F_m + F_u + F_c
-        return lhs(total_form), rhs(total_form)  # type: ignore
 
     def _formulate_density_equation(
         self,
@@ -676,6 +681,89 @@ class PescoidSimulator:
 
         return pressure
 
+    def _compute_residuals(
+        self, solution: Function
+    ) -> Tuple[float, float, float, float]:
+        """Compute residuals for each equation using the solution.
+
+        Returns:
+            Tuple of (rho_residual, m_residual, u_residual, c_residual)
+        """
+        rho_sol, m_sol, u_sol, c_sol = solution.split(deepcopy=True)
+        test_rho, test_m, test_u, test_c = TestFunctions(self._mixed_function_space)  # type: ignore
+        rho_prev, m_prev, u_prev, c_prev = split(self._previous_state)  # type: ignore
+
+        # Density residual
+        rho_residual_form = (
+            (rho_sol - rho_prev) * test_rho * dx  # type: ignore
+            + self._dt_const * self._diffusivity_const * rho_sol.dx(0) * test_rho.dx(0) * dx  # type: ignore
+            - self._dt_const * self._flow_const * u_prev * rho_prev * test_rho.dx(0) * dx  # type: ignore
+            - self._dt_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
+        )
+        rho_residual = float(norm(assemble(rho_residual_form).get_local()))
+
+        # Mesoderm residual
+        mechanical_feedback = self._formulate_mechanical_feedback(
+            rho_prev=rho_prev,  # type: ignore
+            m_prev=m_prev,
+            test_m=test_m,
+            cue=getattr(self.params, "feedback_mode"),
+        )
+
+        m_residual_form = (
+            (m_sol - m_prev) * test_m * dx  # type: ignore
+            - self._dt_const * (self._one_const / self._tau_m_const) * m_prev * (m_prev + self._one_const) * (self._one_const - m_prev) * test_m * dx  # type: ignore
+            - mechanical_feedback
+            - self._dt_const * (self._one_const / self._tau_m_const) * self._morphogen_feedback_const * c_prev * test_m * dx  # type: ignore
+            + self._dt_const * self._m_diffusivity_const * m_sol.dx(0) * test_m.dx(0) * dx  # type: ignore
+            + self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * test_m * dx  # type: ignore
+        )
+        m_residual = float(norm(assemble(m_residual_form).get_local()))
+
+        # Velocity residual
+        if self.corrected_pressure:
+            active_stress = self._calculate_active_stress_field(rho_prev, m_prev)  # type: ignore
+            boundary_term_const = self._calculate_boundary_velocity_term_from_state()
+            pressure = self._calculate_pressure(
+                u_sol, active_stress, boundary_term_const
+            )
+            corrected_stress = active_stress - pressure  # type: ignore
+
+            u_residual_form = (
+                self._eta_const * u_sol.dx(0) * test_u.dx(0) * dx  # type: ignore
+                - corrected_stress * test_u.dx(0) * dx  # type: ignore
+            )
+        else:
+            rho_gate = self._half_const * (
+                tanh((rho_prev - self._rho_gate_center_const) / self._rho_gate_width_const)  # type: ignore
+                + self._one_const
+            )
+            active_stress_div = self._calculate_stress_divergence(rho_prev, m_prev)  # type: ignore
+
+            u_residual_form = (
+                rho_gate * self._gamma_const * u_sol * test_u * dx
+                + rho_gate * u_sol.dx(0) * test_u.dx(0) * dx  # type: ignore
+                - active_stress_div * test_u * dx  # type: ignore
+            )
+        u_residual = float(norm(assemble(u_residual_form).get_local()))
+
+        # Morphogen residual
+        sigma = float(self.params.gaussian_width)
+        normalization = 1.0 / (sigma * np.sqrt(2 * np.pi))
+        gaussian_expr = f"{normalization} * exp(-pow(x[0], 2) / (2 * pow({sigma}, 2)))"
+        gaussian_source = Expression(gaussian_expr, degree=2)
+
+        c_residual_form = (
+            (c_sol - c_prev) * test_c * dx  # type: ignore
+            - self._dt_const * u_prev * c_prev * test_c.dx(0) * dx  # type: ignore
+            + self._dt_const * self._c_diffusivity_const * c_sol.dx(0) * test_c.dx(0) * dx  # type: ignore
+            + self._dt_const * self._morphogen_decay_const * c_prev * test_c * dx  # type: ignore
+            - self._dt_const * gaussian_source * test_c * dx  # type: ignore
+        )
+        c_residual = float(norm(assemble(c_residual_form).get_local()))
+
+        return rho_residual, m_residual, u_residual, c_residual
+
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""
         lhs_form, rhs_form = self._forms
@@ -701,6 +789,17 @@ class PescoidSimulator:
             u_norm=delta_u,
             c_norm=delta_c,
         )
+
+        # Compute residuals
+        if self.log_residuals:
+            rho_res, m_res, u_res, c_res = self._compute_residuals(solution)
+            self.logger.log_residual(
+                step_idx=step_idx,
+                rho_residual=rho_res,
+                m_residual=m_res,
+                u_residual=u_res,
+                c_residual=c_res,
+            )
 
         # Extract components
         rho_new, m_new, u_new, c_new = solution.split(deepcopy=True)
