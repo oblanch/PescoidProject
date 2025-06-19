@@ -72,7 +72,7 @@ pescoid optimize \
 pescoid plot \
   --simulation_npz path/to/simulation_results.npz \
   --experimental_npz path/to/reference_timeseries.npz \
-  --output_dir path/to/output
+  --output_dir path/to/place/figure
 ```
 
 ## Citation

@@ -187,8 +187,9 @@ def plot_simulation_timeseries(
             experimental_data["tissue_size"],
             color="tab:blue",
             linewidth=0.75,
-            linestyle="--",
+            linestyle="-.",
             label="Tissue size (exp)",
+            alpha=0.4,
         )
 
     ax1.set_xlabel("Time (min)")
@@ -214,8 +215,9 @@ def plot_simulation_timeseries(
             experimental_data["mesoderm_fraction"],
             color="tab:red",
             linewidth=0.75,
-            linestyle="--",
+            linestyle="-.",
             label="Mesoderm fraction (exp)",
+            alpha=0.4,
         )
 
     ax2.set_ylabel("Mesoderm fraction", color="tab:red")

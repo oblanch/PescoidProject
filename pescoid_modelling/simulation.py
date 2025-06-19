@@ -78,7 +78,7 @@ class PescoidSimulator:
         parameters: SimulationParams,
         work_dir: str | Path,
         corrected_pressure: bool = False,
-        log_residuals: bool = False,
+        log_residuals: bool = True,
     ) -> None:
         """Initialize the simulator class."""
         self.params = parameters

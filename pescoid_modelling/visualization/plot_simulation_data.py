@@ -259,7 +259,7 @@ def plot_spatial_fields(
     time_points: Optional[List[float]] = None,
     minutes_per_generation: float = 30.0,
 ) -> Figure:
-    """Plot spatial fields: density, mesoderm, velocity, stress, morphogen."""
+    """Plot spatial fields: density, mesoderm, velocity, morphogen."""
     if time_points is None:
         if len(sim_data["time"]) > 20:
             indices = np.linspace(0, len(sim_data["time"]) - 1, 250, dtype=int)
@@ -269,14 +269,17 @@ def plot_spatial_fields(
         times_minutes = sim_data["time"] * minutes_per_generation
         indices = [np.argmin(np.abs(times_minutes - tp)) for tp in time_points]  # type: ignore
 
-    fig, axes = plt.subplots(2, 3, figsize=(11, 4.5))
+    fig, axes = plt.subplots(2, 2, figsize=(11, 4.5))
     axes = axes.flatten()
 
     x_coords = sim_data["x_coords"]
-    fields = ["density", "mesoderm", "velocity", "stress", "morphogen"]
-    field_labels = ["Density ρ", "Mesoderm m", "Velocity u", "Stress σ", "Morphogen c"]
+    # fields = ["density", "mesoderm", "velocity", "stress", "morphogen"]
+    fields = ["density", "mesoderm", "velocity", "morphogen"]
+    # field_labels = ["Density ρ", "Mesoderm m", "Velocity u", "Stress σ", "Morphogen c"]
+    field_labels = ["Density ρ", "Mesoderm m", "Velocity u", "Morphogen c"]
 
     colormaps = ["Blues", "Reds", "Greens", "Oranges", "Purples"]
+    # colormaps = ["Blues", "Reds", "Greens", "Oranges", "Purples"]
     time_values = sim_data["time"][indices] * minutes_per_generation
     norm = Normalize(vmin=time_values.min(), vmax=time_values.max())
 
@@ -302,7 +305,7 @@ def plot_spatial_fields(
         cbar = plt.colorbar(sm, ax=ax, shrink=0.2, aspect=5)
         cbar.set_label("Time (min)", rotation=270, labelpad=8)
 
-    axes[5].axis("off")
+    # axes[5].axis("off")
 
     plt.tight_layout()
     return fig
@@ -371,25 +374,26 @@ def plot_update_and_residual_norms(
     ax_up.legend(frameon=False, loc="upper right", bbox_to_anchor=(1.5, 1))
     ax_up.margins(x=0, y=0)
 
-    for idx, (fld, lbl) in enumerate(residual_fields):
-        arr = sim_data.get(fld)
-        if arr is None or len(arr) == 0:
-            continue
-        ax_res.semilogy(
-            t[: len(arr)],
-            arr,
-            label=lbl,
-            color=colors[idx],
-            linestyle=linestyles[idx],
-            linewidth=lw,
-            marker=markers[idx],
-            markevery=mk_every,
-            markersize=ms,
-        )
-    ax_res.set_xlabel("Time (minutes)")
-    ax_res.set_ylabel("Residual L₂ norm")
-    ax_res.legend(frameon=False, loc="upper right", bbox_to_anchor=(1.5, 1))
-    ax_res.margins(x=0, y=0)
+    if "rho_residual" in sim_data:
+        for idx, (fld, lbl) in enumerate(residual_fields):
+            arr = sim_data.get(fld)
+            if arr is None or len(arr) == 0:
+                continue
+            ax_res.semilogy(
+                t[: len(arr)],
+                arr,
+                label=lbl,
+                color=colors[idx],
+                linestyle=linestyles[idx],
+                linewidth=lw,
+                marker=markers[idx],
+                markevery=mk_every,
+                markersize=ms,
+            )
+        ax_res.set_xlabel("Time (minutes)")
+        ax_res.set_ylabel("Residual L₂ norm")
+        ax_res.legend(frameon=False, loc="upper right", bbox_to_anchor=(1.5, 1))
+        ax_res.margins(x=0, y=0)
 
     plt.tight_layout()
     return fig

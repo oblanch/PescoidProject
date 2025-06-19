@@ -71,11 +71,10 @@ def _load_simulation_data(file_path: str) -> Dict[str, Any]:
     sim["u_norm"] = data["u_norm"]
     sim["c_norm"] = data["c_norm"]
 
-    # Residuals
-    sim["rho_residual"] = data["rho_residual"]
-    sim["m_residual"] = data["m_residual"]
-    sim["u_residual"] = data["u_residual"]
-    sim["c_residual"] = data["c_residual"]
+    # # Residuals
+    for residual in ["rho", "m", "u", "c"]:
+        if f"{residual}_residual" in data:
+            sim[f"{residual}_residual"] = data[f"{residual}_residual"]
 
     _validate_data_consistency(sim)
     return sim
