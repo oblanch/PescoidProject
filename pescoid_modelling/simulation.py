@@ -856,9 +856,7 @@ class PescoidSimulator:
         m_vals: np.ndarray,
         edge_idx: float | None,
     ) -> float:
-        """Calculate the fraction of tissue that is expressing mesoderm using a
-        smooth activation function.
-        """
+        """Calculate the fraction of tissue that is expressing mesoderm."""
         if edge_idx is None:
             return 0.0
 

@@ -269,16 +269,16 @@ def plot_spatial_fields(
         times_minutes = sim_data["time"] * minutes_per_generation
         indices = [np.argmin(np.abs(times_minutes - tp)) for tp in time_points]  # type: ignore
 
-    fig, axes = plt.subplots(2, 2, figsize=(11, 4.5))
+    fig, axes = plt.subplots(2, 2, figsize=(7.5, 4))
     axes = axes.flatten()
 
     x_coords = sim_data["x_coords"]
     # fields = ["density", "mesoderm", "velocity", "stress", "morphogen"]
     fields = ["density", "mesoderm", "velocity", "morphogen"]
     # field_labels = ["Density ρ", "Mesoderm m", "Velocity u", "Stress σ", "Morphogen c"]
-    field_labels = ["Density ρ", "Mesoderm m", "Velocity u", "Morphogen c"]
+    field_labels = ["Density", "Mesoderm", "Velocity", "Morphogen"]
 
-    colormaps = ["Blues", "Reds", "Greens", "Oranges", "Purples"]
+    colormaps = ["Blues", "Reds", "Greens", "Purples"]
     # colormaps = ["Blues", "Reds", "Greens", "Oranges", "Purples"]
     time_values = sim_data["time"][indices] * minutes_per_generation
     norm = Normalize(vmin=time_values.min(), vmax=time_values.max())
@@ -296,7 +296,7 @@ def plot_spatial_fields(
             )
 
         ax.set_ylabel(label)
-        ax.set_xlabel("Position x")
+        ax.set_xlabel("X (coordinate position)")
         ax.set_title(f"{label} evolution")
         ax.margins(x=0, y=0.01)
 
