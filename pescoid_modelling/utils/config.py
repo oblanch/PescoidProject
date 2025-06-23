@@ -17,8 +17,7 @@ _ORDER = [
     "beta",
     "r",
     "m_sensitivity",
-    "c_diffusivity",
-    "morphogen_feedback",
+    "growth_inhibition",
 ]
 
 
@@ -87,10 +86,8 @@ class SimulationParams:
     rho_sensitivity: float = 0.0
     m_sensitivity: float = 0.09628726199197271
     feedback_mode: str = "active_stress"
-    c_diffusivity: float = 5e-4
-    morphogen_decay: float = 0.05
-    gaussian_width: float = 0.2
-    morphogen_feedback: float = 0.0
+    morphogen_feedback: float = 0.5
+    growth_inhibition: float = 1.0
 
 
 @dataclass(frozen=True)

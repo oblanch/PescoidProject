@@ -26,6 +26,7 @@ from dolfin import TrialFunctions  # type: ignore
 import numpy as np
 from numpy.linalg import norm
 from tqdm import tqdm  # type: ignore
+from ufl import exp  # type: ignore
 from ufl import tanh  # type: ignore
 
 from pescoid_modelling.utils.config import SimulationParams
@@ -148,9 +149,7 @@ class PescoidSimulator:
         self._gamma_const = Constant(self.params.gamma)
         self._rho_sensitivity_const = Constant(self.params.rho_sensitivity)
         self._m_sensitivity_const = Constant(self.params.m_sensitivity)
-        self._c_diffusivity_const = Constant(self.params.c_diffusivity)
-        self._morphogen_decay_const = Constant(self.params.morphogen_decay)
-        self._gaussian_width_const = Constant(self.params.gaussian_width)
+        self._growth_inhibition_const = Constant(self.params.growth_inhibition)
         self._morphogen_feedback_const = Constant(self.params.morphogen_feedback)
 
         # Imported constants
@@ -239,7 +238,7 @@ class PescoidSimulator:
         density_initial_condition = Expression(density_expression, degree=2)
         mesoderm_initial_condition = Expression("-1.0", degree=1)
         velocity_initial_condition = Expression("0.0", degree=1)
-        morphogen_initial_condition = Expression("0.0", degree=1)
+        morphogen_initial_condition = Expression("0.2", degree=1)
 
         # Create function spaces
         scalar_space = FunctionSpace(self._mesh, "CG", 1)
@@ -305,7 +304,6 @@ class PescoidSimulator:
         self._c_form = self._formulate_morphogen_equation(
             c=c,
             c_prev=c_prev,
-            u_prev=u_prev,
             test_c=test_c,
         )
 
@@ -320,13 +318,13 @@ class PescoidSimulator:
         growth).
 
         Strong form:
-          ∂ρ/∂t  +  ∂x(F * u * ρ)  =  δ * ∂²ρ/∂x² - ρ * (1 - ρ)
+        ∂ρ/∂t + ∂x(F * u * ρ) = δ * ∂²ρ/∂x² + exp(-b * ρ)
 
         Weak form:
-          (ρ^{n+1} - ρⁿ) * φ * dx
-          + Δt * δ * ∂xρ^{n+1} * ∂xφ * dx
-          - Δt * F * uⁿ * ρⁿ * ∂xφ * dx
-          - Δt * ρⁿ * (1 - ρⁿ) * φ * dx = 0
+        (ρ^{n+1} - ρⁿ) * φ * dx
+        + Δt * δ * ∂xρ^{n+1} * ∂xφ * dx
+        - Δt * F * uⁿ * ρⁿ * ∂xφ * dx
+        - Δt * exp(-b * ρⁿ) * φ * dx = 0
         """
         # ∂ρ/∂t = (ρ^{n+1} - ρⁿ) * φ * dx
         temporal = (rho - rho_prev) * test_rho * dx  # type: ignore
@@ -343,7 +341,7 @@ class PescoidSimulator:
 
         # -ρ * (1 - ρ) = - Δt * ρⁿ * (1 - ρⁿ) * φ * dx
         reaction = (
-            -self._dt_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
+            -self._dt_const * exp(-self._growth_inhibition_const * rho_prev) * test_rho * dx  # type: ignore
         )
 
         return temporal + diffusion + advection + reaction
@@ -498,45 +496,16 @@ class PescoidSimulator:
         self,
         c: Function,
         c_prev: Function,
-        u_prev: Function,
         test_c: Function,
     ) -> Form:
         """Formulate the variational form for morphogen concentration.
 
-        Strong form:
-          ∂c/∂t + ∂x(v * c) = s(x) - k * c + D_c * ∂²c/∂x²
+        Modfieid to keep morphogen constant: c^{n+1} = c^n
 
         Weak form:
-          (c^{n+1} - cⁿ) * φ * dx
-          - Δt * vⁿ * cⁿ * ∂φ/∂x * dx
-          + Δt * k * cⁿ * φ * dx
-          + Δt * D_c * ∂c^{n+1}/∂x * ∂φ/∂x * dx
-          - Δt * s(x) * φ * dx = 0
+            (c^{n+1} - c^n) * φ * dx = 0
         """
-        # s(x) = (1/(σ√(2π))) * exp(-x²/(2σ²))
-        sigma = float(self.params.gaussian_width)
-        normalization = 1.0 / (sigma * np.sqrt(2 * np.pi))
-        gaussian_expr = f"{normalization} * exp(-pow(x[0], 2) / (2 * pow({sigma}, 2)))"
-        gaussian_source = Expression(gaussian_expr, degree=2)
-
-        # ∂c/∂t = (c^{n+1} - cⁿ) * φ * dx
-        temporal = (c - c_prev) * test_c * dx  # type: ignore
-
-        # ∂x(v * c) = - Δt * vⁿ * cⁿ * ∂φ/∂x * dx
-        advection = -self._dt_const * u_prev * c_prev * test_c.dx(0) * dx  # type: ignore
-
-        # D_c * ∂²c/∂x² = + Δt * D_c * ∂c^{n+1}/∂x * ∂φ/∂x * dx
-        diffusion = (
-            self._dt_const * self._c_diffusivity_const * c.dx(0) * test_c.dx(0) * dx  # type: ignore
-        )
-
-        # -k * c = + Δt * k * cⁿ * φ * dx
-        decay = self._dt_const * self._morphogen_decay_const * c_prev * test_c * dx  # type: ignore
-
-        # +s(x) = - Δt * s(x) * φ * dx
-        source = -self._dt_const * gaussian_source * test_c * dx  # type: ignore
-
-        return temporal + advection + diffusion + decay + source
+        return (c - c_prev) * test_c * dx  # type: ignore
 
     def _calculate_active_stress_field(
         self, rho_prev: Function, m_prev: Function
@@ -698,7 +667,10 @@ class PescoidSimulator:
             (rho_sol - rho_prev) * test_rho * dx  # type: ignore
             + self._dt_const * self._diffusivity_const * rho_sol.dx(0) * test_rho.dx(0) * dx  # type: ignore
             - self._dt_const * self._flow_const * u_prev * rho_prev * test_rho.dx(0) * dx  # type: ignore
-            - self._dt_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
+            - self._dt_const
+            * exp(-self._growth_inhibition_const * rho_prev)  # type: ignore
+            * test_rho
+            * dx
         )
         rho_residual = float(norm(assemble(rho_residual_form).get_local()))
 
@@ -748,18 +720,7 @@ class PescoidSimulator:
         u_residual = float(norm(assemble(u_residual_form).get_local()))
 
         # Morphogen residual
-        sigma = float(self.params.gaussian_width)
-        normalization = 1.0 / (sigma * np.sqrt(2 * np.pi))
-        gaussian_expr = f"{normalization} * exp(-pow(x[0], 2) / (2 * pow({sigma}, 2)))"
-        gaussian_source = Expression(gaussian_expr, degree=2)
-
-        c_residual_form = (
-            (c_sol - c_prev) * test_c * dx  # type: ignore
-            - self._dt_const * u_prev * c_prev * test_c.dx(0) * dx  # type: ignore
-            + self._dt_const * self._c_diffusivity_const * c_sol.dx(0) * test_c.dx(0) * dx  # type: ignore
-            + self._dt_const * self._morphogen_decay_const * c_prev * test_c * dx  # type: ignore
-            - self._dt_const * gaussian_source * test_c * dx  # type: ignore
-        )
+        c_residual_form = (c_sol - c_prev) * test_c * dx  # type: ignore
         c_residual = float(norm(assemble(c_residual_form).get_local()))
 
         return rho_residual, m_residual, u_residual, c_residual

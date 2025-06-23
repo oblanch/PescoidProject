@@ -25,6 +25,19 @@ def get_physical_cores() -> int:
     return cores - 1
 
 
+def get_dewetting_onset(
+    times: np.ndarray,
+    boundary_positions: np.ndarray,
+    slope_threshold: float = -1e-1,
+) -> float:
+    """Time when dR/dt first drops below slope_threshold."""
+    if boundary_positions.size < 2:
+        return np.nan
+    dRdt = np.gradient(boundary_positions, times)
+    mask = dRdt < slope_threshold
+    return float(times[np.argmax(mask)]) if np.any(mask) else np.nan
+
+
 def make_reference_timeseries(
     stats_df: pd.DataFrame,
     time_key: str = "TIME",
@@ -32,28 +45,60 @@ def make_reference_timeseries(
     frac_key: str = "mean_fraction",
     window_length: int = 7,
     polyorder: int = 1,
+    frac_of_peak: float = 0.10,
+    plateau_frac: float = 1.00,
+    slope_threshold: float = -1e-1,
     outfile: str = "reference_timeseries.npz",
 ) -> None:
-    """Create a reference timeseries from experimental data and save as .npz for
-    use. Smooths the trajectories, finds the max value, and populates the rest
-    of the array with the max to produce a sigmoidal-like plateau.
+    """Build a rigid cubic [0→1] reference curve that crosses frac_of_peak at
+    dewetting onset and reaches 1.0 at plateau time.
     """
-    time: np.ndarray = stats_df[time_key].to_numpy(dtype=float)
-    radius: np.ndarray = stats_df[radius_key].to_numpy(dtype=float)
-    fraction: np.ndarray = stats_df[frac_key].to_numpy(dtype=float)
+    times = stats_df[time_key].to_numpy(dtype=float)
+    raw_radius = stats_df[radius_key].to_numpy(dtype=float)
+    raw_frac = stats_df[frac_key].to_numpy(dtype=float)
 
-    radius_sm = savgol_filter(radius, window_length, polyorder)
-    meso_sm = savgol_filter(fraction, window_length, polyorder)
+    smoothed_radius = savgol_filter(raw_radius, window_length, polyorder)
+    smoothed_frac = savgol_filter(raw_frac, window_length, polyorder)
 
-    max_idx = int(np.argmax(meso_sm))
-    mesoderm_fraction = meso_sm.copy()
-    mesoderm_fraction[max_idx:] = meso_sm[max_idx]
+    dewetting_time = get_dewetting_onset(times, smoothed_radius, slope_threshold)
+    if np.isnan(dewetting_time):
+        raise RuntimeError("Could not detect dewetting onset in the radius trace.")
+
+    peak_frac_value = float(np.nanmax(smoothed_frac))
+    plateau_threshold = plateau_frac * peak_frac_value
+    plateau_indices = np.where(smoothed_frac >= plateau_threshold)[0]
+    if plateau_indices.size:
+        plateau_time = float(times[plateau_indices[0]])
+    else:
+        plateau_time = float(times[-1])
+
+    if plateau_time <= dewetting_time:
+        raise RuntimeError("Plateau time must be after dewetting onset.")
+
+    cubic_coeffs = [2.0, -3.0, 0.0, frac_of_peak]
+    all_roots = np.roots(cubic_coeffs)
+    valid_roots = [
+        root.real
+        for root in all_roots
+        if abs(root.imag) < 1e-8 and 0.0 < root.real < 1.0
+    ]
+    if not valid_roots:
+        raise RuntimeError(f"No valid cubic root for frac_of_peak={frac_of_peak}")
+    s_onset = valid_roots[0]
+
+    t_start = (dewetting_time - s_onset * plateau_time) / (1.0 - s_onset)
+
+    normalized_time = (times - t_start) / (plateau_time - t_start)
+    normalized_time = np.clip(normalized_time, 0.0, 1.0)
+    mesoderm_fraction = 3.0 * normalized_time**2 - 2.0 * normalized_time**3
 
     np.savez(
         outfile,
-        time=time,
-        tissue_size=radius_sm,
+        time=times,
+        tissue_size=smoothed_radius,
         mesoderm_fraction=mesoderm_fraction,
+        dewetting_time=np.asarray([dewetting_time]),
+        plateau_time=np.asarray([plateau_time]),
     )
 
 

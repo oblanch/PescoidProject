@@ -14,8 +14,6 @@ simulation:
   r: 1.4355095309012016
   rho_sensitivity: 0.0
   m_sensitivity: 0.09628726199197271
-  c_diffusivity: 4e-4
-  morphogen_decay: 0.05
-  gaussian_width: 0.15
-  morphogen_feedback: 1.0
+  morphogen_feedback: 0.0
+  growth_inhibition: 5.0
   feedback_mode: active_stress
