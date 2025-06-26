@@ -26,7 +26,9 @@ from dolfin import TrialFunctions  # type: ignore
 import numpy as np
 from numpy.linalg import norm
 from tqdm import tqdm  # type: ignore
+from ufl import conditional  # type: ignore
 from ufl import exp  # type: ignore
+from ufl import gt  # type: ignore
 from ufl import tanh  # type: ignore
 
 from pescoid_modelling.utils.config import SimulationParams
@@ -34,11 +36,16 @@ from pescoid_modelling.utils.constants import ETA
 from pescoid_modelling.utils.constants import INITIAL_AMPLITUDE
 from pescoid_modelling.utils.constants import LEADING_EDGE_THRESHOLD
 from pescoid_modelling.utils.constants import LENGTH_SCALE
+from pescoid_modelling.utils.constants import MAX_HALVES
+from pescoid_modelling.utils.constants import MIN_DT
 from pescoid_modelling.utils.constants import RHO_GATE_CENTER
 from pescoid_modelling.utils.constants import RHO_GATE_WIDTH
 from pescoid_modelling.utils.constants import SNAPSHOT_EVERY_N_STEPS
 from pescoid_modelling.utils.constants import TRANSITION_WIDTH
 from pescoid_modelling.utils.simulation_logger import SimulationLogger
+
+RHO_MAX = 10.0
+RHO_MAX_CONST = Constant(RHO_MAX)
 
 
 class PescoidSimulator:
@@ -339,9 +346,18 @@ class PescoidSimulator:
             -self._dt_const * self._flow_const * u_prev * rho_prev * test_rho.dx(0) * dx  # type: ignore
         )
 
-        # -ρ * (1 - ρ) = - Δt * ρⁿ * (1 - ρⁿ) * φ * dx
+        # # -ρ * (1 - ρ) = - Δt * ρⁿ * (1 - ρⁿ) * φ * dx
+        # reaction = (
+        #     -self._dt_const * exp(-self._growth_inhibition_const * rho_prev) * test_rho * dx  # type: ignore
+        # )
+
+        growth_raw = rho_prev * (self._one_const - rho_prev)  # type: ignore
         reaction = (
-            -self._dt_const * exp(-self._growth_inhibition_const * rho_prev) * test_rho * dx  # type: ignore
+            self._dt_const
+            * growth_raw
+            * exp(-self._growth_inhibition_const * rho_prev)  # type: ignore
+            * test_rho
+            * dx  # type: ignore
         )
 
         return temporal + diffusion + advection + reaction
@@ -406,7 +422,6 @@ class PescoidSimulator:
 
         # F * uⁿ * ∂mⁿ/∂x = +Δt * F * uⁿ * ∂xmⁿ * φ * dx
         advection = self._dt_const * self._flow_const * u_prev * m_prev.dx(0) * test_m * dx  # type: ignore
-        # advection = self._dt_const * self._flow_const * u_prev * m.dx(0) * test_m * dx  # type: ignore
 
         return (
             temporal
@@ -514,9 +529,14 @@ class PescoidSimulator:
 
         σᵃ = ρ * [A * f(ρ, m) - 1]
         """
+        rho_clamped = conditional(gt(rho_prev, RHO_MAX_CONST), RHO_MAX_CONST, rho_prev)
+
         # ρ/(1 + α*ρ²)
-        density_saturation = rho_prev / (
-            self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev  # type: ignore
+        # density_saturation = rho_prev / (
+        #     self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev  # type: ignore
+        # )
+        density_saturation = rho_clamped / (
+            self._one_const + self._rho_sensitivity_const * rho_clamped * rho_clamped  # type: ignore
         )
 
         # (tanh((m - m₀)/m₀) + 1)/2
@@ -534,7 +554,8 @@ class PescoidSimulator:
         )
 
         # σᵃ = ρ * (active_stress_factor)
-        return rho_prev * (active_stress_factor)
+        # return rho_prev * (active_stress_factor)
+        return rho_clamped * (active_stress_factor)
 
     def _calculate_strain_rate(self, rho_prev: Function, m_prev: Function) -> Function:
         """Calculate the strain rate based on the active stress field:
@@ -586,9 +607,14 @@ class PescoidSimulator:
 
         ∂σ/∂x where σ = ρ * [A * f(ρ,m) - 1]
         """
+        rho_clamped = conditional(gt(rho_prev, RHO_MAX_CONST), RHO_MAX_CONST, rho_prev)
+
         # ρ/(1 + α*ρ²)
-        density_saturation = rho_prev / (
-            self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev  # type: ignore
+        # density_saturation = rho_prev / (
+        #     self._one_const + self._rho_sensitivity_const * rho_prev * rho_prev  # type: ignore
+        # )
+        density_saturation = rho_clamped / (
+            self._one_const + self._rho_sensitivity_const * rho_clamped * rho_clamped  # type: ignore
         )
 
         # sigmoid(m) = (tanh((m - m₀)/m₀) + 1)/2
@@ -606,7 +632,8 @@ class PescoidSimulator:
         )
 
         # σ = ρ * (A * f(ρ,m) - 1)
-        active_stress = rho_prev * (active_stress_factor - self._one_const)
+        # active_stress = rho_prev * (active_stress_factor - self._one_const)
+        active_stress = rho_clamped * (active_stress_factor - self._one_const)
 
         # ∂σ/∂x
         return active_stress.dx(0)
@@ -729,11 +756,43 @@ class PescoidSimulator:
         """Advance the simulation by one time step."""
         lhs_form, rhs_form = self._forms
         solution = Function(self._mixed_function_space)
-        solve(lhs_form == rhs_form, solution)
+
+        # use adaptive delta_t
+        n_halves = 0
+        while True:
+            try:
+                solve(lhs_form == rhs_form, solution)
+            except RuntimeError:
+                pass
+            else:
+                rho_new, m_new, u_new, c_new = solution.split(deepcopy=True)
+                bad = np.any(np.isnan(m_new.vector().get_local())) or np.any(
+                    np.isinf(m_new.vector().get_local())
+                )
+                if not bad:
+                    break
+
+            n_halves += 1
+            new_dt = self.time_step * 0.5
+            if n_halves > MAX_HALVES or new_dt < MIN_DT:
+                print("Step failed after ", n_halves, " halvings")
+                return False
+
+            self.time_step = new_dt
+            self._dt_const.assign(new_dt)
+            lhs_form, rhs_form = self._forms
+            print(f"  retry with Δt={new_dt:.3e}")
 
         # Split old and new states
         rho_old, m_old, u_old, c_old = self._previous_state.split(deepcopy=True)  # type: ignore
         rho_new, m_new, u_new, c_new = solution.split(deepcopy=True)  # type: ignore
+
+        # clamp mesoderm to [0,1]
+        m_arr = m_new.vector().get_local()
+        np.clip(m_arr, 0.0, 1.0, out=m_arr)
+        m_new.vector().set_local(m_arr)
+        m_new.vector().apply("insert")
+        assign(solution.sub(1), m_new)
 
         # Get vector differences
         delta_rho = float(
@@ -835,15 +894,18 @@ class PescoidSimulator:
 
     def _compute_stress(self, rho_arr: np.ndarray, m_arr: np.ndarray) -> np.ndarray:
         """Compute stress of the simulation based on the current state."""
+        # clamp density so rho**2 never overflows
+        rho_clamped = np.minimum(rho_arr, RHO_MAX)
+
         # ρ/(1 + α ρ²)
-        sat = rho_arr / (1.0 + self.params.rho_sensitivity * rho_arr**2)
+        sat = rho_clamped / (1.0 + self.params.rho_sensitivity * rho_clamped**2)
 
         # sigmoid(m) = (tanh((m - m₀)/m₀) + 1)/2
         sig = 0.5 * (
             1 + np.tanh((m_arr - self.params.m_sensitivity) / self.params.m_sensitivity)
         )
         # σ = ρ * A * sat * (1 + β sig)
-        return rho_arr * self.params.activity * sat * (1 + self.params.beta * sig)
+        return rho_clamped * self.params.activity * sat * (1 + self.params.beta * sig)
 
     def _radius_norm(self, edge_x: float) -> float:
         """Calculate the normalized area based on the leading edge position.

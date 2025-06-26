@@ -75,18 +75,18 @@ class SimulationParams:
     domain_length: float = 10.0
     dx_interval: float = 0.001
     diffusivity: float = 8.980959167540726e-05
-    m_diffusivity: float = 1e-3
+    m_diffusivity: float = 2e-3
     tau_m: float = 5.96945686472471
     flow: float = 0.14313330708373756
     activity: float = 0.8177242457000748
     beta: float = 0.6359440258892959
     gamma: float = 0.19664898263383435
-    sigma_c: float = 0.0
+    sigma_c: float = 0.35
     r: float = 1.4355095309012016
     rho_sensitivity: float = 0.0
     m_sensitivity: float = 0.09628726199197271
     feedback_mode: str = "active_stress"
-    morphogen_feedback: float = 0.5
+    morphogen_feedback: float = 0.0
     growth_inhibition: float = 1.0
 
 

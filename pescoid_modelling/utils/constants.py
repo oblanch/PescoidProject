@@ -17,3 +17,7 @@ JITTER: float = 1e-6
 # constants for dynamic loss weighting
 EPS: float = 1e-9
 EMA_ALPHA: float = 0.2
+
+# constants to help stiff equations
+MAX_HALVES = 3
+MIN_DT = 1e-5

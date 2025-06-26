@@ -18,9 +18,9 @@ cma:
   
   bounds:
     lower:
-      diffusivity: 1e-5
+      diffusivity: 1e-4
       tau_m: 0.1
-      flow: 0.0
+      flow: 0.01
       activity: 0.0
       beta: 0.0
       gamma: 1e-4
@@ -29,12 +29,12 @@ cma:
       growth_inhibition: 0.0
     
     upper:
-      diffusivity: 1e-2
+      diffusivity: 5e-3
       tau_m: 8.0
-      flow: 10.0
+      flow: 3.0
       activity: 5.0
       beta: 5.0
       gamma: 1
-      r: 20.0
+      r: 5.0
       m_sensitivity: 1e-1
       growth_inhibition: 5.0
