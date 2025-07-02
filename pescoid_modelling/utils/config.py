@@ -87,7 +87,6 @@ class SimulationParams:
     m_sensitivity: float = 0.09628726199197271
     feedback_mode: str = "active_stress"
     morphogen_feedback: float = 0.0
-    growth_inhibition: float = 1.0
 
 
 @dataclass(frozen=True)
