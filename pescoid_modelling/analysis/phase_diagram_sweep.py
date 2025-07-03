@@ -60,8 +60,12 @@ def run_simulation(base: SimulationParams, overrides: Dict[str, float]) -> Dict 
     return None if sim.aborted else sim.results
 
 
-def classify_state(metrics: Dict[str, float]) -> int:
-    """Classify trajectory into states using sign changes in Δsize/Δt.
+def classify_state(
+    metrics: Dict[str, float],
+    threshold: float = 0.05,
+) -> int:
+    """Classify trajectory into states using sign changes in Δsize/Δt. Requires
+    at least a 5% change in size to be considered a growth/shrinkage event.
 
     0 – Grows and later shrinks - wetting and dewetting
     1 – Derivatives ≤ 0 (never grows) --> only de‑wet
@@ -72,19 +76,27 @@ def classify_state(metrics: Dict[str, float]) -> int:
     if size.size < 3:
         return 3
 
-    diff = np.diff(size)
-    pos = diff > 0
-    neg = diff < 0
+    initial = size[0]
+    peak = size.max()
+    trough = size.min()
 
-    if pos.any() and neg.any():
-        first_neg_idx = np.argmax(neg)
-        if pos[:first_neg_idx].any():
+    grew = peak > initial * (1 + threshold)
+    shrank = trough < peak * (1 - threshold)
+
+    if grew and shrank:
+        wet_idx = np.argmax(size > initial * (1 + threshold))
+        post_peak = size[wet_idx:]
+        drop_mask = post_peak < size[wet_idx] * (1 - threshold)
+        if drop_mask.any():
             return 0
         return 3
-    if pos.any() and not neg.any():
+
+    if grew and not shrank:
         return 2
-    if neg.any() and not pos.any():
+
+    if shrank and not grew:
         return 1
+
     return 3
 
 

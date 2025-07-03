@@ -182,6 +182,7 @@ def extract_simulation_metrics(results: Dict[str, np.ndarray]) -> Dict[str, floa
     onset_time = calculate_onset_time(t, mezzo, ONSET_THRESH)
 
     return {
+        "tissue_size": results["tissue_size"],  # type: ignore
         "peak_time": peak_time,
         "peak_idx": peak_idx,
         "growth_factor": growth_factor,
