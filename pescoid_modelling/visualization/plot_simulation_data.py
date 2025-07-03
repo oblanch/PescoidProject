@@ -148,118 +148,12 @@ def plot_mesoderm_metrics(
     return fig
 
 
-def plot_morphogen_metrics(
-    sim_data: Dict[str, Any], minutes_per_generation: float = 30.0
-) -> Figure:
-    """Plot morphogen metrics: mean, center, max, edge, gradient_max,
-    gradient_center.
-    """
-    fig, axes = plt.subplots(2, 3, figsize=(5, 2.5))
-    time_minutes = sim_data["time"] * minutes_per_generation
-
-    # Morphogen mean
-    axes[0, 0].plot(
-        time_minutes,
-        sim_data["morphogen_mean"],
-        color="tab:cyan",
-        linewidth=0.5,
-        marker="o",
-        markersize=0.5,
-        markevery=5,
-    )
-    axes[0, 0].set_xlabel("Time (minutes)")
-    axes[0, 0].set_ylabel("Morphogen mean")
-    axes[0, 0].set_title("Morphogen mean")
-    axes[0, 0].margins(x=0, y=0.025)
-
-    # Morphogen center
-    axes[0, 1].plot(
-        time_minutes,
-        sim_data["morphogen_center"],
-        color="tab:gray",
-        linewidth=0.5,
-        marker="o",
-        markersize=0.5,
-        markevery=5,
-    )
-    axes[0, 1].set_xlabel("Time (minutes)")
-    axes[0, 1].set_ylabel("Morphogen center")
-    axes[0, 1].set_title("Morphogen center")
-    axes[0, 1].margins(x=0, y=0.025)
-
-    # Max morphogen
-    axes[0, 2].plot(
-        time_minutes,
-        sim_data["max_morphogen"],
-        color="teal",
-        linewidth=0.5,
-        marker="o",
-        markersize=0.5,
-        markevery=5,
-    )
-    axes[0, 2].set_xlabel("Time (minutes)")
-    axes[0, 2].set_ylabel("Max morphogen")
-    axes[0, 2].set_title("Max morphogen")
-    axes[0, 2].margins(x=0, y=0.025)
-
-    # Morphogen edge
-    if "morphogen_edge" in sim_data:
-        axes[1, 0].plot(
-            time_minutes,
-            sim_data["morphogen_edge"],
-            color="navy",
-            linewidth=0.5,
-            marker="o",
-            markersize=0.5,
-            markevery=5,
-        )
-        axes[1, 0].set_xlabel("Time (minutes)")
-        axes[1, 0].set_ylabel("Morphogen edge")
-        axes[1, 0].set_title("Morphogen edge")
-        axes[1, 0].margins(x=0, y=0.025)
-    else:
-        axes[1, 0].axis("off")
-
-    # Morphogen gradient max
-    if "morphogen_gradient_max" in sim_data:
-        axes[1, 1].plot(
-            time_minutes,
-            sim_data["morphogen_gradient_max"],
-            color="darkred",
-            linewidth=0.5,
-        )
-        axes[1, 1].set_xlabel("Time (minutes)")
-        axes[1, 1].set_ylabel("Morphogen gradient max")
-        axes[1, 1].set_title("Morphogen gradient max")
-        axes[1, 1].margins(x=0, y=0.025)
-    else:
-        axes[1, 1].axis("off")
-
-    # Morphogen gradient center
-    if "morphogen_gradient_center" in sim_data:
-        axes[1, 2].plot(
-            time_minutes,
-            sim_data["morphogen_gradient_center"],
-            color="darkgreen",
-            linewidth=0.5,
-        )
-        axes[1, 2].set_xlabel("Time (minutes)")
-        axes[1, 2].set_ylabel("Morphogen gradient center")
-        axes[1, 2].set_title("Morphogen gradient center")
-        axes[1, 2].margins(x=0, y=0.025)
-    else:
-        axes[1, 2].axis("off")
-
-    plt.tight_layout()
-    return fig
-
-
 def plot_spatial_fields(
     sim_data: Dict[str, Any],
     time_points: Optional[List[float]] = None,
     minutes_per_generation: float = 30.0,
 ) -> Figure:
-    """Plot spatial fields: density, mesoderm, velocity, morphogen."""
+    """Plot spatial fields: density, mesoderm, velocity, stress."""
     if time_points is None:
         if len(sim_data["time"]) > 20:
             indices = np.linspace(0, len(sim_data["time"]) - 1, 250, dtype=int)
@@ -273,13 +167,10 @@ def plot_spatial_fields(
     axes = axes.flatten()
 
     x_coords = sim_data["x_coords"]
-    # fields = ["density", "mesoderm", "velocity", "stress", "morphogen"]
-    fields = ["density", "mesoderm", "velocity", "morphogen"]
-    # field_labels = ["Density ρ", "Mesoderm m", "Velocity u", "Stress σ", "Morphogen c"]
-    field_labels = ["Density", "Mesoderm", "Velocity", "Morphogen"]
+    fields = ["density", "mesoderm", "velocity", "stress"]
+    field_labels = ["Density (ρ)", "Mesoderm (m)", "Velocity (u)", "Stress (σ)"]
 
     colormaps = ["Blues", "Reds", "Greens", "Purples"]
-    # colormaps = ["Blues", "Reds", "Greens", "Oranges", "Purples"]
     time_values = sim_data["time"][indices] * minutes_per_generation
     norm = Normalize(vmin=time_values.min(), vmax=time_values.max())
 
@@ -297,7 +188,6 @@ def plot_spatial_fields(
 
         ax.set_ylabel(label)
         ax.set_xlabel("X (coordinate position)")
-        ax.set_title(f"{label} evolution")
         ax.margins(x=0, y=0.01)
 
         sm = ScalarMappable(norm=norm, cmap=cmap)
@@ -305,9 +195,7 @@ def plot_spatial_fields(
         cbar = plt.colorbar(sm, ax=ax, shrink=0.2, aspect=5)
         cbar.set_label("Time (min)", rotation=270, labelpad=8)
 
-    # axes[5].axis("off")
-
-    plt.tight_layout()
+    plt.tight_layout(h_pad=5)
     return fig
 
 
@@ -417,17 +305,13 @@ def plot_all_diagnostics(
     fig2.savefig(f"{save_prefix}_mesoderm_metrics.svg", bbox_inches="tight")
     plt.close(fig2)
 
-    fig3 = plot_morphogen_metrics(sim_data, minutes_per_generation)
-    fig3.savefig(f"{save_prefix}_morphogen_metrics.svg", bbox_inches="tight")
+    fig3 = plot_spatial_fields(sim_data, minutes_per_generation=minutes_per_generation)
+    fig3.savefig(f"{save_prefix}_spatial_fields.svg", bbox_inches="tight")
     plt.close(fig3)
 
-    fig4 = plot_spatial_fields(sim_data, minutes_per_generation=minutes_per_generation)
-    fig4.savefig(f"{save_prefix}_spatial_fields.svg", bbox_inches="tight")
-    plt.close(fig4)
-
-    fig5 = plot_update_and_residual_norms(sim_data, minutes_per_generation)
-    fig5.savefig(f"{save_prefix}_update_norms.svg", bbox_inches="tight")
-    plt.close(fig5)
+    # fig4 = plot_update_and_residual_norms(sim_data, minutes_per_generation)
+    # fig4.savefig(f"{save_prefix}_update_norms.svg", bbox_inches="tight")
+    # plt.close(fig4)
 
 
 def main():

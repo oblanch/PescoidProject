@@ -1,7 +1,14 @@
-# Pescoid fluid dynamics simulation
+<div align="center">
+  <h1>1-Dimensional active fluid model of tissue wetting and dewetting</h1>
+</div>
 
 <div align="center">
-    <img src='docs/_static/pescoid_mesoderm_animation.gif'>
+    <img src='docs/_static/pescoid_mesoderm_animation.gif'
+    style="width:80%">
+</div>
+<div align="center">
+    <img src='docs/_static/pescoid_1d_profiles_animation.gif'
+    style="width:80%">
 </div>
 <br>
 
@@ -11,7 +18,7 @@ A computational model simulating tissue morphogenesis as an active fluid system 
 * Mesoderm differentiation with feedback mechanisms
 * Mechanical force balance with active stresses
 
-The simulation is implemented using FEniCS for finite element PDE solving. CMA-ES is used for parameter optimization to fit the model to reference data.
+The simulation is implemented using FEniCS for finite element PDE solving. Both a semi-brute force grid-search and CMA-ES are used for parameter optimization to fit the model to reference data.
 
 ## Installation
 This package utilizes [legacy FENICS](https://fenicsproject.org/download/archive/). To install an appropriate environment:

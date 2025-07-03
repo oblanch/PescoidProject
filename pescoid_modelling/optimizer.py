@@ -274,5 +274,4 @@ class CMAOptimizer:
             fig.savefig(self.work_dir / f"cma_plot_{fig_num}.png", dpi=450)
 
         plt.close("all")
-
         print(f"Optimization plots saved to {self.work_dir}")

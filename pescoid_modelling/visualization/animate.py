@@ -23,7 +23,7 @@ class AnimationConfig:
 
     axis_limit: float = 1.85
     n_rings: int = 150
-    fps: int = 24
+    fps: int = 60
     dpi: int = 450
     cmap_bins: int = 256
     phase_box_lw: float = 0.25
@@ -183,7 +183,7 @@ def animate_pescoid_radial_symmetry(
         dpi=cfg.dpi,
         extra_args=["-vcodec", "libx264", "-pix_fmt", "yuv420p"],
     )
-    gif_writer = PillowWriter(fps=cfg.fps)
+    gif_writer = PillowWriter(fps=cfg.fps // 2)
     anim.save(
         str(output_path) + ".gif",
         dpi=cfg.dpi,
@@ -204,65 +204,47 @@ def animate_pescoid_1d_profiles(
     mesoderm: np.ndarray = data["mesoderm"]
     density: np.ndarray = data["density"]
     velocity: np.ndarray = data["velocity"]
+    stress: np.ndarray = data["stress"]
 
-    fig, (ax_density, ax_velocity, ax_mesoderm) = plt.subplots(
-        3, 1, figsize=(2, 3.75), sharex=True
-    )
+    fig, axes = plt.subplots(2, 2, figsize=(3.5, 2.55), sharex=True, sharey=False)
+    ax_density, ax_velocity, ax_mesoderm, ax_stress = axes.flatten()
 
     # Density
     ax_density.set(
-        xlim=(x_coords.min(), x_coords.max()),
-        ylim=(0, 3.5),
-        ylabel="Density ρ",
-        title="1D pescoid profiles",
+        xlim=(-2, 2),
+        ylim=(0, 1.15),
+        ylabel="Density (ρ)",
     )
-    ax_density.axvline(0, color="gray", linestyle="--", alpha=0.3, linewidth=0.6)
-    (line_density,) = ax_density.plot([], [], "b-", linewidth=0.6)
+    (line_density,) = ax_density.plot([], [], linewidth=0.55, color="tab:blue")
     fill_density = None
 
     # Velocity
     ax_velocity.set(
-        xlim=(x_coords.min(), x_coords.max()),
-        ylim=(-2, 2),
-        ylabel="Velocity u",
+        xlim=(-2, 2),
+        ylim=(-0.7, 0.7),
+        ylabel="Velocity (u)",
     )
-    ax_velocity.axvline(0, color="gray", linestyle="--", alpha=0.3, linewidth=0.6)
-    ax_velocity.axhline(0, color="gray", linestyle="--", alpha=0.3, linewidth=0.6)
-    (line_velocity,) = ax_velocity.plot([], [], "g-", linewidth=0.6)
+    (line_velocity,) = ax_velocity.plot([], [], linewidth=0.55, color="tab:green")
 
     # Mesoderm
     ax_mesoderm.set(
-        xlim=(x_coords.min(), x_coords.max()),
-        ylim=(-1.2, 1.2),
+        xlim=(-2, 2),
+        ylim=(-1, 1.75),
         ylabel="Mesoderm m",
-        xlabel="Position x",
+        xlabel="X (coordinate position)",
     )
-    ax_mesoderm.axvline(0, color="gray", linestyle="--", alpha=0.3, linewidth=0.6)
-    ax_mesoderm.axhline(0, color="gray", linestyle="--", alpha=0.3, linewidth=0.6)
-    (line_mesoderm,) = ax_mesoderm.plot([], [], "r-", linewidth=0.6)
+    (line_mesoderm,) = ax_mesoderm.plot([], [], linewidth=0.6, color="tab:red")
     fill_mesoderm = None
 
-    boundary_lines = []
-    for ax in [ax_density, ax_velocity, ax_mesoderm]:
-        left_line = ax.axvline(
-            -1.0, color="lightgray", linestyle=":", alpha=0.6, linewidth=0.6
-        )
-        right_line = ax.axvline(
-            1.0, color="lightgray", linestyle=":", alpha=0.6, linewidth=0.6
-        )
-        boundary_lines.extend([left_line, right_line])
-
-    phase_text = ax_density.text(
-        0.95,
-        0.95,
-        "",
-        transform=ax_density.transAxes,
-        ha="right",
-        va="top",
-        bbox=dict(
-            boxstyle="round", facecolor="wheat", alpha=0.8, linewidth=cfg.phase_box_lw
-        ),
+    # Stress
+    ax_stress.set(
+        xlim=(-2, 2),
+        ylim=(0, 1.95),
+        ylabel="Stress (σ)",
+        xlabel="X (coordinate position)",
     )
+    (line_stress,) = ax_stress.plot([], [], linewidth=0.55, color="tab:purple")
+    fill_stress = None
 
     center_idx = int(np.argmin(np.abs(x_coords)))
     max_radius_idx = int(np.argmax(tissue_sizes))
@@ -272,31 +254,17 @@ def animate_pescoid_1d_profiles(
         line_density.set_data([], [])
         line_velocity.set_data([], [])
         line_mesoderm.set_data([], [])
-        phase_text.set_text("")
-        return [line_density, line_velocity, line_mesoderm, phase_text]
+        line_stress.set_data([], [])
+        return [line_density, line_velocity, line_mesoderm, line_stress]
 
     def animate(frame: int) -> List:
         """Update the animation for each frame."""
         radius = float(tissue_sizes[frame])
-        current_time = times[frame]
-
-        for i in range(0, len(boundary_lines), 2):
-            boundary_lines[i].set_xdata([-radius])
-            boundary_lines[i + 1].set_xdata([radius])
-
-        is_wetting = frame < max_radius_idx
-        phase_text.set_text("Wetting" if is_wetting else "Dewetting")
-        phase_text.set_bbox(
-            dict(
-                facecolor="green" if is_wetting else "blue",
-                alpha=0.075,
-                linewidth=cfg.phase_box_lw,
-            )
-        )
 
         density_field = density[frame]
         velocity_field = velocity[frame]
         mesoderm_field = mesoderm[frame]
+        stress_field = stress[frame]
 
         edge_idx = center_idx + int(
             radius * len(x_coords) / (2 * np.max(np.abs(x_coords)))
@@ -310,17 +278,21 @@ def animate_pescoid_1d_profiles(
         density_tissue = density_field[left_idx : edge_idx + 1]
         velocity_tissue = velocity_field[left_idx : edge_idx + 1]
         mesoderm_tissue = mesoderm_field[left_idx : edge_idx + 1]
+        stress_tissue = stress_field[left_idx : edge_idx + 1]
 
         line_density.set_data(x_tissue, density_tissue)
         line_velocity.set_data(x_tissue, velocity_tissue)
         line_mesoderm.set_data(x_tissue, mesoderm_tissue)
+        line_stress.set_data(x_tissue, stress_tissue)
 
-        nonlocal fill_density, fill_mesoderm
+        nonlocal fill_density, fill_mesoderm, fill_stress
 
         if fill_density is not None:
             fill_density.remove()
         if fill_mesoderm is not None:
             fill_mesoderm.remove()
+        if fill_stress is not None:
+            fill_stress.remove()
 
         fill_density = ax_density.fill_between(
             x_tissue, 0, density_tissue, alpha=0.3, color="blue"
@@ -328,12 +300,15 @@ def animate_pescoid_1d_profiles(
         fill_mesoderm = ax_mesoderm.fill_between(
             x_tissue, 0, mesoderm_tissue, alpha=0.3, color="red"
         )
+        fill_stress = ax_stress.fill_between(
+            x_tissue, 0, stress_tissue, alpha=0.3, color="purple"
+        )
 
         return [
             line_density,
             line_velocity,
             line_mesoderm,
-            phase_text,
+            line_stress,
             fill_density,
             fill_mesoderm,
         ]
@@ -349,7 +324,7 @@ def animate_pescoid_1d_profiles(
     )
     fig.tight_layout()
     anim.save(
-        str(output_path),
+        str(output_path) + ".mp4",
         dpi=cfg.dpi,
         writer=animation.FFMpegWriter(
             fps=cfg.fps,
@@ -363,18 +338,111 @@ def animate_pescoid_1d_profiles(
         ),
     )
 
+    gif_writer = PillowWriter(fps=cfg.fps // 2)
+    anim.save(
+        str(output_path) + ".gif",
+        dpi=cfg.dpi,
+        writer=gif_writer,
+    )
+
+    plt.close(fig)
+
+
+def animate_pescoid_1d_overlay(
+    data: Dict[str, np.ndarray],
+    output_path: Path | str,
+    cfg: AnimationConfig = AnimationConfig(),
+) -> None:
+    """Animate density, mesoderm and stress overlaid on one plot."""
+    times = data["time"] * 30.0
+    tissue_sizes = data["tissue_size"]
+    x_coords = data["x_coords"]
+    density = data["density"]
+    mesoderm = data["mesoderm"]
+    stress = data["stress"]
+
+    fig, ax = plt.subplots(figsize=(2.25, 2), sharex=False)
+
+    ax.set(
+        xlim=(-2, 2),
+        ylim=(-1.00, 2.0),
+        xlabel="X (coordinate position)",
+        ylabel="Nondimensionalised units",
+    )
+
+    (line_density,) = ax.plot([], [], color="tab:blue", lw=0.7, label="Density (ρ)")
+    (line_mesoderm,) = ax.plot([], [], color="tab:red", lw=0.7, label="Mesoderm (m)")
+    (line_stress,) = ax.plot([], [], color="tab:purple", lw=0.7, label="Stress (σ)")
+
+    ax.legend(frameon=False, bbox_to_anchor=(0.725, 1.3))
+    centre_idx = int(np.argmin(np.abs(x_coords)))
+
+    def init() -> List:
+        """Blank lines to start."""
+        for ln in (line_density, line_mesoderm, line_stress):
+            ln.set_data([], [])
+        return [line_density, line_mesoderm, line_stress]
+
+    def animate(frame: int) -> List:
+        """Update traces for frame."""
+        radius = float(tissue_sizes[frame])
+
+        edge_idx = centre_idx + int(
+            radius * len(x_coords) / (2 * np.abs(x_coords).max())
+        )
+        edge_idx = min(edge_idx, len(x_coords) - 1)
+        left_idx = max(0, centre_idx - (edge_idx - centre_idx))
+
+        x_t = x_coords[left_idx : edge_idx + 1]
+        ρ_t = density[frame, left_idx : edge_idx + 1]
+        m_t = mesoderm[frame, left_idx : edge_idx + 1]
+        σ_t = stress[frame, left_idx : edge_idx + 1]
+
+        line_density.set_data(x_t, ρ_t)
+        line_mesoderm.set_data(x_t, m_t)
+        line_stress.set_data(x_t, σ_t)
+
+        return [line_density, line_mesoderm, line_stress]
+
+    anim = animation.FuncAnimation(
+        fig,
+        animate,
+        init_func=init,
+        frames=len(times),
+        interval=1000 / cfg.fps,
+        blit=False,
+        repeat=True,
+    )
+
+    fig.tight_layout(pad=0.1)
+    anim.save(
+        str(output_path) + ".mp4",
+        dpi=cfg.dpi,
+        writer=animation.FFMpegWriter(
+            fps=cfg.fps,
+            codec="libx264",
+            extra_args=["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-pix_fmt", "yuv420p"],
+        ),
+    )
+
+    gif_writer = PillowWriter(fps=cfg.fps // 2)
+    anim.save(
+        str(output_path) + ".gif",
+        dpi=cfg.dpi,
+        writer=gif_writer,
+    )
+
     plt.close(fig)
 
 
 def main() -> None:
     """CLI entry‑point that reproduces the legacy default behaviour."""
     _set_matplotlib_publication_parameters()
-
     data = load_simulation_data("simulation_results.npz")
-    animate_pescoid_radial_symmetry(data, "pescoid_mesoderm_animation")
 
-    profile_cfg = AnimationConfig(dpi=450)
-    animate_pescoid_1d_profiles(data, "pescoid_1d_profiles_animation.mp4", profile_cfg)
+    animate_pescoid_radial_symmetry(data, "pescoid_mesoderm_animation")
+    animate_pescoid_1d_profiles(data, "pescoid_1d_profiles_animation")
+    animate_pescoid_1d_overlay(data, "pescoid_1d_overlay_animation")
 
 
 if __name__ == "__main__":

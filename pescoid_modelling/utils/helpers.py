@@ -1,7 +1,7 @@
 """Utility helper functions for pescoid modelling."""
 
 from pathlib import Path
-from typing import Sequence, Tuple, Union
+from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd  # type: ignore
@@ -10,6 +10,7 @@ from scipy.signal import savgol_filter  # type: ignore
 
 from pescoid_modelling.utils.config import _load_yaml
 from pescoid_modelling.utils.config import _ORDER
+from pescoid_modelling.utils.constants import ONSET_THRESH
 from pescoid_modelling.utils.parameter_scaler import ParamScaler
 
 _LOG_AXES_PARAMS = {"diffusivity", "gamma", "m_sensitivity"}
@@ -23,6 +24,26 @@ def get_physical_cores() -> int:
     if cores is None or cores <= 1:
         return 1
     return cores - 1
+
+
+def calculate_onset_time(
+    time_array: np.ndarray,
+    mesoderm_array: np.ndarray,
+    threshold: float = ONSET_THRESH,
+) -> Optional[float]:
+    """Calculate time when mesoderm reaches threshold of its maximum."""
+    max_meso = np.max(mesoderm_array)
+    if max_meso <= 0:
+        return None
+
+    onset_value = threshold * max_meso
+    onset_mask = mesoderm_array >= onset_value
+
+    if not np.any(onset_mask):
+        return None
+
+    onset_idx = np.where(onset_mask)[0][0]
+    return float(time_array[onset_idx])
 
 
 def get_dewetting_onset(

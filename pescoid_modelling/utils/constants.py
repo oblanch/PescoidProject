@@ -1,6 +1,6 @@
 """Constants for pescoid modelling."""
 
-# simulation constants
+# Simulation constants
 SNAPSHOT_EVERY_N_STEPS: int = 10
 LEADING_EDGE_THRESHOLD: float = 0.2
 RHO_GATE_CENTER: float = 0.02
@@ -11,14 +11,26 @@ TRANSITION_WIDTH: float = 1e-2
 LENGTH_SCALE: float = 1.0
 RHO_MAX: float = 3.0
 
-# optimization penalties
-OPTIM_PENALTY: float = 1e4
+# Optimization penalties
+OPTIM_PENALTY: float = 1e9
 JITTER: float = 1e-6
 
-# constants for dynamic loss weighting
+# Constants for dynamic loss weighting
 EPS: float = 1e-9
 EMA_ALPHA: float = 0.2
 
-# constants to help stiff equations
+# Constants to help stiff equations
 MAX_HALVES: int = 3
 MIN_DT: float = 1e-5
+
+# Acceptance criteria for model behavior
+ALIGN_TOL = 60.0
+PEAK_DROP_MIN = 0.10
+GROWTH_MIN = 1.10
+WALL_TOL = 0.98
+MIN_PEAK_TIME = 180.0
+SLOPE_THRESHOLD = -5e-4
+
+# Parameter search constraints
+ONSET_THRESH = 0.05
+ONSET_TIME_SCALE = 30.0

@@ -17,7 +17,7 @@ _ORDER = [
     "beta",
     "r",
     "m_sensitivity",
-    "growth_inhibition",
+    "morphogen_feedback",
 ]
 
 
@@ -57,12 +57,6 @@ class SimulationParams:
         Saturation of active stress at high density
       m_sensitivity:
         Sensitivity of the increase in contractility when cells become mesoderm
-      c_diffusivity:
-        D_c - morphogen diffusion coefficient
-      morphogen_decay:
-        k - morphogen decay/consumption rate
-      gaussian_width:
-        σ - width of Gaussian source
       morphogen_feedback:
         R - morphogen sensitivity for chemical feedback
       feedback_mode:
@@ -73,7 +67,7 @@ class SimulationParams:
     delta_t: float = 0.01
     total_hours: float = 12.0
     domain_length: float = 10.0
-    dx_interval: float = 0.001
+    dx_interval: float = 0.01
     diffusivity: float = 8.980959167540726e-05
     m_diffusivity: float = 2e-3
     tau_m: float = 5.96945686472471

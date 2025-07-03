@@ -12,9 +12,14 @@ from scipy.interpolate import interp1d  # type: ignore
 from scipy.stats import qmc  # type: ignore
 import yaml  # type: ignore
 
+from pescoid_modelling.objective import check_acceptance_criteria
+from pescoid_modelling.objective import extract_simulation_metrics
 from pescoid_modelling.simulation import PescoidSimulator
 from pescoid_modelling.utils.config import apply_parameter_overrides
 from pescoid_modelling.utils.config import SimulationParams
+from pescoid_modelling.utils.constants import ONSET_TIME_SCALE
+from pescoid_modelling.utils.constants import SLOPE_THRESHOLD
+from pescoid_modelling.utils.helpers import calculate_onset_time
 
 PARAM_KEYS: List[str] = [
     "diffusivity",
@@ -35,15 +40,6 @@ FAST_PATCH = dict(
     domain_length=10.0,
 )
 
-# Acceptance criteria
-ALIGN_TOL = 60.0
-ONSET_THRESH = 0.05
-PEAK_DROP_MIN = 0.10
-GROWTH_MIN = 1.10
-WALL_TOL = 0.98
-MIN_PEAK_TIME = 180.0
-SLOPE_THRESHOLD = -5e-4
-
 # Optimization settings
 MAX_TRIES = 1000
 BATCH_POW2 = 5
@@ -53,7 +49,6 @@ EPS = 1e-12
 
 # Time conversion
 TOTAL_MIN = FAST_PATCH["total_hours"] * 60.0
-ONSET_TIME_SCALE = 30.0
 
 data_ctrl_t = np.arange(30, 630 + 1, 30)
 data_ctrl_r = np.array(
@@ -215,71 +210,6 @@ def run_fast_simulation(
         return (None, apply_parameter_overrides(params, FAST_PATCH))
 
 
-def calculate_onset_time(
-    time_array: np.ndarray,
-    mesoderm_array: np.ndarray,
-    threshold: float = ONSET_THRESH,
-) -> Optional[float]:
-    """Calculate time when mesoderm reaches threshold of its maximum."""
-    max_meso = np.max(mesoderm_array)
-    if max_meso <= 0:
-        return None
-
-    onset_value = threshold * max_meso
-    onset_mask = mesoderm_array >= onset_value
-
-    if not np.any(onset_mask):
-        return None
-
-    onset_idx = np.where(onset_mask)[0][0]
-    return float(time_array[onset_idx])
-
-
-def extract_simulation_metrics(results: Dict[str, np.ndarray]) -> Dict[str, float]:
-    """Extract key metrics from simulation results."""
-    t = results["time"] * 30.0
-    radius = results["tissue_size"]
-    mezzo = results["mesoderm_fraction"]
-    edge_x = results["boundary_positions"]
-
-    # Peak
-    peak_idx = int(radius.argmax())
-    peak_time = t[peak_idx]
-    peak_radius = float(radius[peak_idx])
-
-    # Wetting and dewetting
-    growth_factor = peak_radius / radius[0] if radius[0] > 0 else 0.0
-    post_peak_min = float(radius[peak_idx:].min())
-    drop_frac = (peak_radius - post_peak_min) / peak_radius if peak_radius else 0.0
-
-    # Boundary position
-    edge_at_peak = edge_x[peak_idx]
-    half_domain = FAST_PATCH["domain_length"] / 2
-    wall_position = edge_at_peak / half_domain
-
-    # Slope over entire post-peak period
-    if peak_idx < len(radius) - 1:
-        a, _ = np.polyfit(t[peak_idx:], radius[peak_idx:], 1)
-        slope = float(a)
-    else:
-        slope = 0.0
-
-    final_drop_frac = (peak_radius - radius[-1]) / peak_radius if peak_radius else 0.0
-
-    onset_time = calculate_onset_time(t, mezzo, ONSET_THRESH)
-
-    return {
-        "peak_time": peak_time,
-        "peak_idx": peak_idx,
-        "growth_factor": growth_factor,
-        "drop_frac": drop_frac,
-        "final_drop_frac": final_drop_frac,
-        "wall_position": wall_position,
-        "onset_time": onset_time if onset_time is not None else np.nan,
-        "post_peak_slope": slope,
-    }
-
-
 def calculate_tissue_loss(
     sim_results: Dict[str, np.ndarray],
     ref_time: np.ndarray,
@@ -317,6 +247,7 @@ def calculate_onset_loss(
 
     if ref_onset_time is None and sim_onset_time is None:
         raise ValueError("Both reference and simulated onset times are None.")
+
     elif ref_onset_time is None or sim_onset_time is None:
         return 1e9
 
@@ -327,7 +258,6 @@ def calculate_onset_loss(
 def calculate_combined_score(
     results: Optional[Dict[str, np.ndarray]],
     metrics: Dict[str, float],
-    best_so_far: float = np.inf,
 ) -> Tuple[float, Dict[str, float]]:
     """Calculate combined score with tissue L2 and onset timing."""
     if results is None:
@@ -357,36 +287,6 @@ def calculate_combined_score(
     }
 
     return score, loss_components
-
-
-def check_acceptance_criteria(
-    results: Optional[Dict[str, np.ndarray]],
-    metrics: Dict[str, float],
-) -> bool:
-    """Check if simulation meets all acceptance criteria."""
-    if results is None:
-        return False
-
-    growth_ok = metrics["growth_factor"] >= GROWTH_MIN
-    drop_ok = metrics["drop_frac"] >= PEAK_DROP_MIN
-    final_ok = metrics["final_drop_frac"] >= PEAK_DROP_MIN
-    wall_ok = metrics["wall_position"] <= WALL_TOL
-    slope_ok = metrics["post_peak_slope"] < SLOPE_THRESHOLD
-    onset_ok = not np.isnan(metrics["onset_time"])
-
-    align_ok = (
-        onset_ok and abs(metrics["peak_time"] - metrics["onset_time"]) <= ALIGN_TOL
-    )
-
-    return (
-        growth_ok
-        and drop_ok
-        and final_ok
-        and wall_ok
-        and onset_ok
-        and align_ok
-        and slope_ok
-    )
 
 
 def grid_search(
@@ -446,7 +346,6 @@ def grid_search(
                 score, loss_comps = calculate_combined_score(
                     results,
                     metrics,
-                    best_candidates[0][0] if best_candidates else np.inf,
                 )
                 metrics.update(loss_comps)
             else:

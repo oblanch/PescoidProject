@@ -1,4 +1,4 @@
-"""Time series optimization objective for the pescoid model."""
+"""Time series optimization objective for the pescoid fluid dynamics model."""
 
 from collections import defaultdict
 from dataclasses import dataclass
@@ -6,10 +6,19 @@ from typing import Dict, MutableMapping, Optional, Tuple
 
 import numpy as np
 
+from pescoid_modelling.utils.constants import ALIGN_TOL
 from pescoid_modelling.utils.constants import EMA_ALPHA
 from pescoid_modelling.utils.constants import EPS
+from pescoid_modelling.utils.constants import GROWTH_MIN
 from pescoid_modelling.utils.constants import JITTER
+from pescoid_modelling.utils.constants import MIN_PEAK_TIME
+from pescoid_modelling.utils.constants import ONSET_THRESH
+from pescoid_modelling.utils.constants import ONSET_TIME_SCALE
 from pescoid_modelling.utils.constants import OPTIM_PENALTY
+from pescoid_modelling.utils.constants import PEAK_DROP_MIN
+from pescoid_modelling.utils.constants import SLOPE_THRESHOLD
+from pescoid_modelling.utils.constants import WALL_TOL
+from pescoid_modelling.utils.helpers import calculate_onset_time
 
 _RUNNING_EMA: Dict[str, Optional[float]] = defaultdict(lambda: None)
 
@@ -120,15 +129,98 @@ def _ema_update(
     return ema_dict[tag]  # type: ignore
 
 
-def _compute_pearson_correlation(
-    sim: np.ndarray,
-    ref: np.ndarray,
-    eps: float = 1e-6,
+def calculate_onset_loss(
+    sim_onset_time: Optional[float],
+    ref_onset_time: Optional[float],
+    time_scale: float = ONSET_TIME_SCALE,
 ) -> float:
-    """Compute the Pearson correlation between sim and ref."""
-    if np.std(sim) < eps or np.std(ref) < eps:
-        return 0.0
-    return float(np.corrcoef(sim, ref)[0, 1])
+    """Calculate loss based on onset time difference."""
+    if ref_onset_time is None or sim_onset_time is None:
+        return 1e9
+
+    time_diff = (sim_onset_time - ref_onset_time) / time_scale
+    return time_diff**2
+
+
+def extract_simulation_metrics(results: Dict[str, np.ndarray]) -> Dict[str, float]:
+    """Extract key metrics from simulation results to determine if simulation is
+    exhibiting system behavior.
+    """
+    t = results["time"] * 30.0
+    radius = results["tissue_size"]
+    mezzo = results["mesoderm_fraction"]
+    edge_x = results.get("boundary_positions", radius)
+
+    # Peak
+    peak_idx = int(radius.argmax())
+    peak_time = t[peak_idx]
+    peak_radius = float(radius[peak_idx])
+
+    # Wetting and dewetting
+    growth_factor = peak_radius / radius[0] if radius[0] > 0 else 0.0
+    post_peak_min = (
+        float(radius[peak_idx:].min()) if peak_idx < len(radius) else peak_radius
+    )
+    drop_frac = (peak_radius - post_peak_min) / peak_radius if peak_radius else 0.0
+
+    # Boundary position
+    domain_length = (
+        results.get("domain_length", [10.0])[0] if "domain_length" in results else 10.0
+    )
+    edge_at_peak = edge_x[peak_idx] if peak_idx < len(edge_x) else edge_x[-1]
+    half_domain = domain_length / 2
+    wall_position = edge_at_peak / half_domain
+
+    # Slope over entire post-peak period
+    if peak_idx < len(radius) - 1:
+        a, _ = np.polyfit(t[peak_idx:], radius[peak_idx:], 1)
+        slope = float(a)
+    else:
+        slope = 0.0
+
+    final_drop_frac = (peak_radius - radius[-1]) / peak_radius if peak_radius else 0.0
+    onset_time = calculate_onset_time(t, mezzo, ONSET_THRESH)
+
+    return {
+        "peak_time": peak_time,
+        "peak_idx": peak_idx,
+        "growth_factor": growth_factor,
+        "drop_frac": drop_frac,
+        "final_drop_frac": final_drop_frac,
+        "wall_position": wall_position,
+        "onset_time": onset_time if onset_time is not None else np.nan,
+        "post_peak_slope": slope,
+    }
+
+
+def check_acceptance_criteria(
+    results: Optional[Dict[str, np.ndarray]],
+    metrics: Dict[str, float],
+) -> bool:
+    """Check if simulation meets all acceptance criteria."""
+    if results is None:
+        return False
+
+    growth_ok = metrics["growth_factor"] >= GROWTH_MIN
+    drop_ok = metrics["drop_frac"] >= PEAK_DROP_MIN
+    final_ok = metrics["final_drop_frac"] >= PEAK_DROP_MIN
+    wall_ok = metrics["wall_position"] <= WALL_TOL
+    slope_ok = metrics["post_peak_slope"] < SLOPE_THRESHOLD
+    onset_ok = not np.isnan(metrics["onset_time"])
+
+    align_ok = (
+        onset_ok and abs(metrics["peak_time"] - metrics["onset_time"]) <= ALIGN_TOL
+    )
+
+    return (
+        growth_ok
+        and drop_ok
+        and final_ok
+        and wall_ok
+        and onset_ok
+        and align_ok
+        and slope_ok
+    )
 
 
 def _compute_dynamic_weights(
@@ -163,13 +255,11 @@ def optimization_objective(
     optimization_target: str = "tissue_and_mesoderm",
     tissue_std: Optional[float] = None,
     mesoderm_std: Optional[float] = None,
-    alpha: float = 0.9,
-    beta: float = 0.1,
     *,
     ema_dict: MutableMapping[str, Optional[float]] | None = None,
 ) -> float:
-    """Fitness cost function based on L2 norm of the mismatch between simulated
-    and reference trajectories of tissue size L(t) and mesoderm signal M(t).
+    """Fitness cost function based on L2 norm of tissue trajectory and mesoderm
+    onset timing.
 
     Args:
       results: Dictionary containing simulation results with keys:
@@ -177,14 +267,14 @@ def optimization_objective(
         - "tissue_size": L_sim(t)
         - "mesoderm_fraction": M_sim(t)
       experimental_data: Experimental trajectories to match (time in minutes).
-        minutes_per_generation: Conversion factor from generation units to
+      minutes_per_generation: Conversion factor from generation units to
         minutes
       optimization_target: What to optimize over - "tissue", "mesoderm", or
         "tissue_and_mesoderm". If "tissue_and_mesoderm", both tissue and
         mesoderm losses are computed and weighted dynamically.
 
     Returns:
-      L2 error value or calls `_invalid_fitness()` if results are invalid or
+      L2 error value or calls _invalid_fitness() if results are invalid or
       simulation is too short.
     """
     if not results:
@@ -200,10 +290,12 @@ def optimization_objective(
         return _invalid_fitness()
 
     try:
+        metrics = extract_simulation_metrics(results)
+        if not check_acceptance_criteria(results, metrics):
+            return _invalid_fitness()
+
         l2_tissue = None
-        l2_meso = None
-        tissue_correlation: float = 0.0
-        mesoderm_correlation: float = 0.0
+        l2_onset = None
 
         if tissue_std is None or mesoderm_std is None:
             tissue_std, mesoderm_std = _calculate_normalization_scales(
@@ -213,56 +305,48 @@ def optimization_objective(
         sim_time_minutes = t_sim * minutes_per_generation
         if not _check_simulation_length(sim_time_minutes, experimental_data):
             return _invalid_fitness()
-        valid_exp_mask = experimental_data.time <= sim_time_minutes[-1]
 
         if optimization_target in ["tissue", "tissue_and_mesoderm"]:
             L_sim_on_exp = _interpolate_simulation_to_experimental_timepoints(
                 t_sim, L_sim, experimental_data.time, minutes_per_generation
             )
+            valid_exp_mask = experimental_data.time <= sim_time_minutes[-1]
             exp_tissue_valid = experimental_data.tissue_size[valid_exp_mask]
             l2_tissue = _calculate_trajectory_mismatch(
                 sim_interpolated=L_sim_on_exp,
                 exp_values=exp_tissue_valid,
                 normalization_scale=tissue_std,
             )
-            tissue_correlation = _compute_pearson_correlation(
-                sim=L_sim_on_exp, ref=exp_tissue_valid
-            )
 
-        if optimization_target in ["mesoderm", "tissue_and_mesoderm"]:
-            M_sim_on_exp = _interpolate_simulation_to_experimental_timepoints(
-                t_sim, M_sim, experimental_data.time, minutes_per_generation
+        if optimization_target in ["onset", "tissue_and_mesoderm"]:
+            ref_onset_time = calculate_onset_time(
+                experimental_data.time, experimental_data.mesoderm_fraction
             )
-            exp_meso_valid = experimental_data.mesoderm_fraction[valid_exp_mask]
-            l2_meso = _calculate_trajectory_mismatch(
-                sim_interpolated=M_sim_on_exp,
-                exp_values=exp_meso_valid,
-                normalization_scale=mesoderm_std,
-            )
-            mesoderm_correlation = _compute_pearson_correlation(
-                sim=M_sim_on_exp, ref=exp_meso_valid
+            l2_onset = calculate_onset_loss(
+                metrics.get("onset_time"), ref_onset_time, ONSET_TIME_SCALE
             )
 
         if optimization_target == "tissue":
             assert l2_tissue is not None
-            return alpha * l2_tissue + beta * (1.0 - tissue_correlation)
+            return l2_tissue
 
-        if optimization_target == "mesoderm":
-            assert l2_meso is not None
-            return alpha * l2_meso + beta * (1.0 - mesoderm_correlation)
+        if optimization_target == "onset":
+            assert l2_onset is not None
+            return l2_onset
 
-        assert l2_tissue is not None and l2_meso is not None
-        losses = {"tissue": l2_tissue, "mesoderm": l2_meso}
-        weights = _compute_dynamic_weights(losses=losses, ema_dict=ema_dict)  # type: ignore
-        l2_combined = weights["tissue"] * l2_tissue + weights["mesoderm"] * l2_meso
-        corr_loss = (1.0 - tissue_correlation) + (1.0 - mesoderm_correlation)
+        assert l2_tissue is not None and l2_onset is not None
+        losses = {"tissue": l2_tissue, "onset": l2_onset}
+        weights = _compute_dynamic_weights(losses=losses, ema_dict=ema_dict)
 
-        return alpha * l2_combined + beta * corr_loss
+        slope = metrics.get("post_peak_slope", 0.0)
+        slope_penalty = 1e9 if slope >= SLOPE_THRESHOLD else 0.0
+
+        return (
+            weights["tissue"] * l2_tissue + weights["onset"] * l2_onset + slope_penalty
+        )
 
     except ValueError as e:
-        raise ValueError(
-            "Simulation results are not compatible with reference data."
-        ) from e
+        return _invalid_fitness()
 
 
 def _check_simulation_length(
