@@ -7,8 +7,8 @@ cma:
     beta: 0.6359440258892959
     gamma: 0.19664898263383435
     r: 1.4355095309012016
-    m_sensitivity: 0.09628726199197271
-    growth_inhibition: 2.5
+    m_sensitivity: 0.3
+    morphogen_feedback: 1.5
   
   sigma0: 0.15
   max_evals: 4000
@@ -26,7 +26,7 @@ cma:
       gamma: 1e-4
       r: 0.0
       m_sensitivity: 1e-3
-      growth_inhibition: 0.0
+      morphogen_feedback: 1.0
     
     upper:
       diffusivity: 5e-3
@@ -36,5 +36,5 @@ cma:
       beta: 5.0
       gamma: 1
       r: 5.0
-      m_sensitivity: 1e-1
-      growth_inhibition: 5.0
+      m_sensitivity: 1.0
+      morphogen_feedback: 2.0

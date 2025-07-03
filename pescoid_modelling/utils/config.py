@@ -81,12 +81,12 @@ class SimulationParams:
     activity: float = 0.8177242457000748
     beta: float = 0.6359440258892959
     gamma: float = 0.19664898263383435
-    sigma_c: float = 0.35
+    sigma_c: float = 0.1
     r: float = 1.4355095309012016
     rho_sensitivity: float = 0.0
     m_sensitivity: float = 0.09628726199197271
     feedback_mode: str = "active_stress"
-    morphogen_feedback: float = 0.0
+    morphogen_feedback: float = 1.5
 
 
 @dataclass(frozen=True)

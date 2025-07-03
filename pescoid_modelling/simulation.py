@@ -730,7 +730,7 @@ class PescoidSimulator:
         lhs_form, rhs_form = self._forms
         solution = Function(self._mixed_function_space)
 
-        # use adaptive delta_t
+        # Adaptive delta_t
         n_halves = 0
         while True:
             try:
