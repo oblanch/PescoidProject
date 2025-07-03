@@ -20,6 +20,7 @@ from pescoid_modelling.utils.config import SimulationParams
 from pescoid_modelling.utils.constants import ONSET_TIME_SCALE
 from pescoid_modelling.utils.constants import SLOPE_THRESHOLD
 from pescoid_modelling.utils.helpers import calculate_onset_time
+from pescoid_modelling.utils.helpers import load_yaml_config
 
 PARAM_KEYS: List[str] = [
     "diffusivity",
@@ -101,14 +102,6 @@ data_ctrl_m = np.array(
         0.51019693,
     ]
 )
-
-
-def load_yaml_config(path: Path) -> Dict[str, Any]:
-    """Load configuration from YAML file."""
-    try:
-        return yaml.safe_load(path.read_text()) or {}
-    except FileNotFoundError:
-        sys.exit(f"YAML not found: {path}")
 
 
 def initialize_csv_log(path: Path) -> None:

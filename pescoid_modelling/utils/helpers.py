@@ -1,12 +1,14 @@
 """Utility helper functions for pescoid modelling."""
 
 from pathlib import Path
-from typing import Optional, Sequence, Tuple, Union
+import sys
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd  # type: ignore
 import psutil  # type: ignore
 from scipy.signal import savgol_filter  # type: ignore
+import yaml  # type: ignore
 
 from pescoid_modelling.utils.config import _load_yaml
 from pescoid_modelling.utils.config import _ORDER
@@ -24,6 +26,14 @@ def get_physical_cores() -> int:
     if cores is None or cores <= 1:
         return 1
     return cores - 1
+
+
+def load_yaml_config(path: Path) -> Dict[str, Any]:
+    """Load configuration from YAML file."""
+    try:
+        return yaml.safe_load(path.read_text()) or {}
+    except FileNotFoundError:
+        sys.exit(f"YAML not found: {path}")
 
 
 def calculate_onset_time(
