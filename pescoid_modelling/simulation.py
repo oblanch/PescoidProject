@@ -27,7 +27,6 @@ import numpy as np
 from numpy.linalg import norm
 from tqdm import tqdm  # type: ignore
 from ufl import conditional  # type: ignore
-from ufl import exp  # type: ignore
 from ufl import gt  # type: ignore
 from ufl import tanh  # type: ignore
 
