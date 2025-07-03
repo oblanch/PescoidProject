@@ -1,14 +1,14 @@
 cma:
   x0: 
-    diffusivity: 8.980959167540726e-05
-    tau_m: 7.0
-    flow: 0.3
-    activity: 0.8177242457000748
-    beta: 0.6359440258892959
-    gamma: 0.19664898263383435
-    r: 1.4355095309012016
-    m_sensitivity: 0.3
-    morphogen_feedback: 1.5
+    diffusivity: 0.000173548
+    tau_m: 6.356783738
+    flow: 0.166038385
+    activity: 0.85442374
+    beta: 0.854592574
+    gamma: 0.151068778
+    r: 1.132526972
+    m_sensitivity: 0.095371646
+    morphogen_feedback: 1.11078258
   
   sigma0: 0.15
   max_evals: 4000

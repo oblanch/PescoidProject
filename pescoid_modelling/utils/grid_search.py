@@ -45,7 +45,7 @@ MIN_PEAK_TIME = 180.0
 SLOPE_THRESHOLD = -5e-4
 
 # Optimization settings
-MAX_TRIES = 500
+MAX_TRIES = 1000
 BATCH_POW2 = 5
 PROGRESS_EVERY = 32
 KEEP_TOP = 5
@@ -403,7 +403,7 @@ def grid_search(
     cfg = load_yaml_config(config_path)
     sim_block = cfg.get("simulation", cfg)
     sim_block = {k: v for k, v in sim_block.items() if k in SimulationParams().__dict__}
-    base_params = SimulationParams(**sim_block)
+    base_params_dict = SimulationParams(**sim_block).__dict__
 
     LOCAL_FACTORS = {
         "diffusivity": (0.5, 2.0),
@@ -427,8 +427,6 @@ def grid_search(
     ref_onset_time = calculate_onset_time(data_ctrl_t, data_ctrl_m)
     print(f"Local Sobol search around seed with max {max_tries} trials …")
     print(f"Reference onset time: {ref_onset_time:.1f} minutes")
-
-    base_params_dict = SimulationParams(**sim_block).__dict__
 
     while tested < max_tries:
         batch_size = min(2**BATCH_POW2, max_tries - tested)

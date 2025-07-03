@@ -1,11 +1,17 @@
 # Pescoid fluid dynamics simulation
+
+<div align="center">
+    <img src='docs/_static/pescoid_mesoderm_animation.gif'>
+</div>
+<br>
+
 A computational model simulating tissue morphogenesis as an active fluid system in one dimension. This project implements coupled partial differential equations (PDEs) that capture:
 
 * Tissue growth and density dynamics
 * Mesoderm differentiation with feedback mechanisms
 * Mechanical force balance with active stresses
 
-The simulation is implemented using FEniCS for robust finite element PDE solving. CMA-ES is used for parameter optimization to fit the model to reference data.
+The simulation is implemented using FEniCS for finite element PDE solving. CMA-ES is used for parameter optimization to fit the model to reference data.
 
 ## Installation
 This package utilizes [legacy FENICS](https://fenicsproject.org/download/archive/). To install an appropriate environment:
