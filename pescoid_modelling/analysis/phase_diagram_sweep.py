@@ -1,5 +1,6 @@
 """Parameter sweep for pescoid phase diagrams (A vs F and β vs R)."""
 
+import argparse
 import csv
 from dataclasses import dataclass
 import multiprocessing as mp
@@ -17,6 +18,43 @@ from pescoid_modelling.utils.helpers import get_physical_cores
 from pescoid_modelling.utils.helpers import load_yaml_config
 
 CORES = get_physical_cores()
+
+
+def onset_time_from(metrics: Dict[str, float]) -> float:
+    """Return mesoderm onset time (minutes) or NaN if unavailable."""
+    return float(metrics.get("onset_time", np.nan))
+
+
+def init_csv(path: Path, header: List[str]):
+    """Initialize a CSV file with the given header."""
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", newline="") as f:
+            csv.writer(f).writerow(header)
+
+
+def append_csv(path: Path, row: List):
+    """Append a row to the CSV file at the given path."""
+    with open(path, "a", newline="") as f:
+        csv.writer(f).writerow(row)
+
+
+def get_final_tissue_size(metrics: Dict[str, float]) -> float:
+    """Return final tissue size or NaN if unavailable."""
+    if "tissue_size" in metrics:
+        size_array = np.asarray(metrics["tissue_size"], dtype=float)
+        if size_array.size > 0:
+            return float(size_array[-1])
+    return np.nan
+
+
+def get_final_meso_frac(metrics: Dict[str, float]) -> float:
+    """Return final mesoderm fraction or NaN if unavailable."""
+    if "mesoderm_fraction" in metrics:
+        frac_array = np.asarray(metrics["mesoderm_fraction"], dtype=float)
+        if frac_array.size > 0:
+            return float(frac_array[-1])
+    return np.nan
 
 
 def range_from_list(lst: List[float]) -> np.ndarray:
@@ -110,41 +148,6 @@ def classify_state(
     return 3
 
 
-def onset_time_from(metrics: Dict[str, float]) -> float:
-    """Return mesoderm onset time (minutes) or NaN if unavailable."""
-    return float(metrics.get("onset_time", np.nan))
-
-
-def init_csv(path: Path, header: List[str]):
-    """Initialize a CSV file with the given header."""
-    with open(path, "w", newline="") as f:
-        csv.writer(f).writerow(header)
-
-
-def append_csv(path: Path, row: List):
-    """Append a row to the CSV file at the given path."""
-    with open(path, "a", newline="") as f:
-        csv.writer(f).writerow(row)
-
-
-def get_final_tissue_size(metrics: Dict[str, float]) -> float:
-    """Return final tissue size or NaN if unavailable."""
-    if "tissue_size" in metrics:
-        size_array = np.asarray(metrics["tissue_size"], dtype=float)
-        if size_array.size > 0:
-            return float(size_array[-1])
-    return np.nan
-
-
-def get_final_meso_frac(metrics: Dict[str, float]) -> float:
-    """Return final mesoderm fraction or NaN if unavailable."""
-    if "mesoderm_fraction" in metrics:
-        frac_array = np.asarray(metrics["mesoderm_fraction"], dtype=float)
-        if frac_array.size > 0:
-            return float(frac_array[-1])
-    return np.nan
-
-
 def _worker(args: tuple) -> tuple[float, float, Dict | None]:
     """Run one (p1, p2) simulation and return results for the pool."""
     p1, p2, p1_name, p2_name, base = args
@@ -184,12 +187,51 @@ def sweep(config: SweepConfig, base: SimulationParams, out_csv: Path) -> None:
                 print(f"[{config.tag}] {idx}/{total} done …")
 
 
-def main(
-    yaml_path: Path = Path("configs/current_best.yaml"),
-    out_csv: Path = Path("phase_diagram_data.csv"),
-) -> None:
+def _parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run a Pescoid parameter sweep.")
+    parser.add_argument(
+        "--sweep",
+        choices=("AF", "BR"),
+        help="Which sweep to run",
+        default="AF",
+    )
+    parser.add_argument(
+        "--yaml",
+        default="configs/current_best.yaml",
+        type=Path,
+        help="YAML file with base parameters",
+    )
+    parser.add_argument(
+        "--out",
+        default="phase_diagram_data.csv",
+        type=Path,
+        help="CSV file to append results into",
+    )
+    return parser.parse_args()
+
+
+def prepend_linspace(
+    new_start: float,
+    old_start: float,
+    old_stop: float,
+    n_old: int,
+) -> np.ndarray:
+    """Return the points below old_start down to new_start using the
+    same step that produced the original n_old points between old_start and
+    old_stop.
+    """
+    step = (old_stop - old_start) / (n_old - 1)
+    n_extra = int(np.floor((old_start - new_start) / step)) + 1
+    return np.linspace(new_start, old_start - step, n_extra)
+
+
+def main() -> None:
     """Entry point for phase diagram parameter sweep."""
-    config_yaml = load_yaml_config(yaml_path)
+    args = _parse_arguments()
+    if args.out == Path("phase_diagram_data.csv"):
+        args.out = Path(f"phase_diagram_data.{args.sweep.lower()}.csv")
+
+    config_yaml = load_yaml_config(args.yaml)
     base = config_yaml.get("simulation", config_yaml)
     sweep_config = config_yaml.get("sweep", {})
 
@@ -197,31 +239,45 @@ def main(
         **{k: v for k, v in base.items() if k in SimulationParams().__dict__}
     )
 
+    activity_config = sweep_config.get("activity", [0.3, 1.5, 15])
     activity_range = range_from_list(sweep_config.get("activity", [0.3, 1.5, 15]))
     flow_range = range_from_list(sweep_config.get("flow", [0.05, 0.35, 15]))
     beta_range = range_from_list(sweep_config.get("beta", [0.4, 2.0, 15]))
     r_range = range_from_list(sweep_config.get("r", [0.5, 3.0, 15]))
 
-    af_config = SweepConfig("AF", "activity", "flow", activity_range, flow_range)
-    br_config = SweepConfig("BR", "beta", "r", beta_range, r_range)
+    # Temporary: extend ranges to improve analysis resolution
+    extra_activity = np.array([])
+    if args.sweep == "AF" and len(activity_config) == 3:
+        a_start, a_stop, n_old = activity_config
+        extra_activity = prepend_linspace(
+            new_start=0.05,
+            old_start=a_start,
+            old_stop=a_stop,
+            n_old=n_old,
+        )
 
-    out_csv.parent.mkdir(parents=True, exist_ok=True)
-    tmp_af = out_csv.with_suffix(".af.csv")
-    tmp_br = out_csv.with_suffix(".br.csv")
+    if args.sweep == "AF":
+        sweep_config = SweepConfig(
+            tag="AF",
+            p1_name="activity",
+            p2_name="flow",
+            p1_range=extra_activity,
+            p2_range=flow_range,
+        )
+    elif args.sweep == "BR":
+        sweep_config = SweepConfig(
+            tag="BR",
+            p1_name="beta",
+            p2_name="r",
+            p1_range=beta_range,
+            p2_range=r_range,
+        )
 
-    print("Running (activity, flow) sweep …")
-    sweep(af_config, base_params, tmp_af)
-
-    print("Running (beta, r) sweep …")
-    sweep(br_config, base_params, tmp_br)
-
-    with open(out_csv, "w") as fout:
-        fout.write(Path(tmp_af).read_text())
-        fout.write(Path(tmp_br).read_text())
-
-    tmp_af.unlink()
-    tmp_br.unlink()
-    print(f"Phase‑diagram data written to {out_csv.resolve()}")
+    sweep(
+        config=sweep_config,
+        base=base_params,
+        out_csv=args.out,
+    )
 
 
 if __name__ == "__main__":

@@ -3,16 +3,16 @@ simulation:
   total_hours: 12.0
   domain_length: 10.0
   dx_interval: 0.001
-  diffusivity: 0.00010161355653022654
+  diffusivity: 0.00010707008081245114
   m_diffusivity: 2e-3
-  tau_m: 8.577024545550678
-  flow: 0.15341494818583273
-  activity: 0.7340154108557804
-  beta: 1.1990605610717755
-  gamma: 0.1936119599257585
+  tau_m: 6.670691324103769
+  flow: 0.13911239295905278
+  activity: 0.6864381104297371
+  beta: 1.139096438227092
+  gamma: 0.2162956741227806
   sigma_c: 0.1
-  r: 1.5034124596839544
+  r: 1.661883393076535
   rho_sensitivity: 0.0
-  m_sensitivity: 0.11451830806904184
-  morphogen_feedback: 1.6307550490189227
+  m_sensitivity: 0.12249505504665882
+  morphogen_feedback: 1.7279017111664752
   feedback_mode: active_stress
