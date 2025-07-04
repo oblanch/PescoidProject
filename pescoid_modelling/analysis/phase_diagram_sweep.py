@@ -41,14 +41,24 @@ class SweepConfig:
 
     def header(self) -> List[str]:
         """Return the header for the CSV file."""
-        return [
-            "pair",
-            self.p1_name,
-            self.p2_name,
-            "state",
-            "final_tissue_size",
-            "mesoderm_fraction",
-        ]
+        if self.tag == "AF":
+            return [
+                "pair",
+                self.p1_name,
+                self.p2_name,
+                "state",
+                "final_tissue_size",
+                "mesoderm_fraction",
+            ]
+        else:  # BR
+            return [
+                "pair",
+                self.p1_name,
+                self.p2_name,
+                "onset_time",
+                "final_tissue_size",
+                "mesoderm_fraction",
+            ]
 
 
 def run_simulation(base: SimulationParams, overrides: Dict[str, float]) -> Dict | None:
@@ -117,6 +127,24 @@ def append_csv(path: Path, row: List):
         csv.writer(f).writerow(row)
 
 
+def get_final_tissue_size(metrics: Dict[str, float]) -> float:
+    """Return final tissue size or NaN if unavailable."""
+    if "tissue_size" in metrics:
+        size_array = np.asarray(metrics["tissue_size"], dtype=float)
+        if size_array.size > 0:
+            return float(size_array[-1])
+    return np.nan
+
+
+def get_final_meso_frac(metrics: Dict[str, float]) -> float:
+    """Return final mesoderm fraction or NaN if unavailable."""
+    if "mesoderm_fraction" in metrics:
+        frac_array = np.asarray(metrics["mesoderm_fraction"], dtype=float)
+        if frac_array.size > 0:
+            return float(frac_array[-1])
+    return np.nan
+
+
 def _worker(args: tuple) -> tuple[float, float, Dict | None]:
     """Run one (p1, p2) simulation and return results for the pool."""
     p1, p2, p1_name, p2_name, base = args
@@ -142,12 +170,15 @@ def sweep(config: SweepConfig, base: SimulationParams, out_csv: Path) -> None:
         ):
             metrics = extract_simulation_metrics(results) if results else {}
 
+            final_size = get_final_tissue_size(metrics)
+            meso_frac = get_final_meso_frac(metrics)
+
             if config.tag == "AF":
                 state = classify_state(metrics) if metrics else 3
-                append_csv(out_csv, ["AF", p1, p2, state])
+                append_csv(out_csv, ["AF", p1, p2, state, final_size, meso_frac])
             else:
                 onset = onset_time_from(metrics)
-                append_csv(out_csv, ["BR", p1, p2, onset])
+                append_csv(out_csv, ["BR", p1, p2, onset, final_size, meso_frac])
 
             if idx % 32 == 0 or idx == total:
                 print(f"[{config.tag}] {idx}/{total} done …")
@@ -166,10 +197,10 @@ def main(
         **{k: v for k, v in base.items() if k in SimulationParams().__dict__}
     )
 
-    activity_range = range_from_list(sweep_config.get("activity", [0, 5.0, 15]))
-    flow_range = range_from_list(sweep_config.get("flow", [0, 10.0, 15]))
-    beta_range = range_from_list(sweep_config.get("beta", [0, 5.0, 15]))
-    r_range = range_from_list(sweep_config.get("r", [0.0, 20.0, 15]))
+    activity_range = range_from_list(sweep_config.get("activity", [0.3, 1.5, 15]))
+    flow_range = range_from_list(sweep_config.get("flow", [0.05, 0.35, 15]))
+    beta_range = range_from_list(sweep_config.get("beta", [0.4, 2.0, 15]))
+    r_range = range_from_list(sweep_config.get("r", [0.5, 3.0, 15]))
 
     af_config = SweepConfig("AF", "activity", "flow", activity_range, flow_range)
     br_config = SweepConfig("BR", "beta", "r", beta_range, r_range)
