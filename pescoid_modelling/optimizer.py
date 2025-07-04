@@ -207,10 +207,13 @@ class CMAOptimizer:
         restarts_left = self._n_restarts
         iteration = 0
 
-        with mp.Pool(
+        ctx = mp.get_context("spawn")
+
+        with ctx.Pool(
             processes=self.n_workers,
             initializer=_init_worker,
             initargs=(self.shared_ema,),
+            maxtasksperchild=1,
         ) as pool:
             while True:
                 logger = cma.CMADataLogger(str(self.work_dir / f"cma_restart.log"))

@@ -156,33 +156,35 @@ def _vecs_to_simulation_config(vec_str: str, config_path: Union[str, Path]) -> N
     emit the simulation config block.
 
     Examples:
-        >>> vec_str = (
-        ...     "0.28525489144682264 0.00909736056224767 "
-        ...     "0.774647354051897 0.9000926897671878 "
-        ...     "0.20953666405892174 0.006077833681571175 "
-        ...     "0.034680941325624694 0.9964689742010449"
-        ... )
-        >>> result = _vecs_to_simulation_config(
+        >>> vec_str = "
+        ...    0.00994556580728923 0.15341494818583273
+        ...    0.7967177922215253 0.45192053907278784
+        ...    0.7044615676175338 0.5995302805358877
+        ...    0.30068249193679086 0.2766307616670052
+        ...    0.6307550490189227
+        ...    "
+        >>> results = _vecs_to_simulation_config(
         ...     vec_str,
         ...     "PescoidProject/configs/optimization_config.yaml",
         ...     scaler
         ... )
-        >>> print(result)
+        ... simulation:
         ...   delta_t: 0.01
         ...   total_hours: 12.0
         ...   domain_length: 10.0
         ...   dx_interval: 0.001
-        ...   diffusivity: 7.174054545113444e-05
-        ...   m_diffusivity: 1e-3
-        ...   tau_m: 6.2197140970099865
-        ...   flow: 0.09097360562247671
-        ...   activity: 1.0476833202946088
-        ...   beta: 0.030389168407855875
-        ...   gamma: 0.39844718147251246
-        ...   sigma_c: 0.0
-        ...   r: 0.6936188265124938
+        ...   diffusivity: 0.00010161355653022654
+        ...   m_diffusivity: 2e-3
+        ...   tau_m: 8.577024545550678
+        ...   flow: 0.15341494818583273
+        ...   activity: 0.7340154108557804
+        ...   beta: 1.1990605610717755
+        ...   gamma: 0.1936119599257585
+        ...   sigma_c: 0.1
+        ...   r: 1.5034124596839544
         ...   rho_sensitivity: 0.0
-        ...   m_sensitivity: 0.09838705211988935
+        ...   m_sensitivity: 0.11451830806904184
+        ...   morphogen_feedback: 1.6307550490189227
         ...   feedback_mode: active_stress
     """
     config = _load_yaml(config_path)
@@ -208,19 +210,16 @@ def _vecs_to_simulation_config(vec_str: str, config_path: Union[str, Path]) -> N
         "  domain_length: 10.0",
         "  dx_interval: 0.001",
         f"  diffusivity: {params['diffusivity']}",
-        "  m_diffusivity: 1e-3",
+        "  m_diffusivity: 2e-3",
         f"  tau_m: {params['tau_m']}",
         f"  flow: {params['flow']}",
         f"  activity: {params['activity']}",
         f"  beta: {params['beta']}",
         f"  gamma: {params['gamma']}",
-        "  sigma_c: 0.0",
+        "  sigma_c: 0.1",
         f"  r: {params['r']}",
         "  rho_sensitivity: 0.0",
         f"  m_sensitivity: {params['m_sensitivity']}",
-        f"  c_diffusivity: {params['c_diffusivity']}",
-        "  morphogen_decay: 0.05",
-        "  gaussian_width: 0.15",
         f"  morphogen_feedback: {params['morphogen_feedback']}",
         "  feedback_mode: active_stress",
     ]
