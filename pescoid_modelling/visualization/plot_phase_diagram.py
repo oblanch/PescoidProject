@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd  # type: ignore
 
+from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
+
+BASE_ONSET = 270.0
+
 
 def _load_sweep(csv_path: Path, tag: str) -> pd.DataFrame:
     """Return a DF containing the specified sweep."""
@@ -42,17 +46,32 @@ def _choose_cmap_and_norm(
     """Get colormap, norm, label, and ticks for the variable."""
     if var == "state":
         cmap = plt.get_cmap("Blues_r", 4)
-        boundaries = np.arange(-0.5, 4, 1)
-        norm = BoundaryNorm(boundaries, cmap.N)
     else:
-        (
-            cmap,
-            norm,
-        ) = (
-            plt.cm.viridis,  # type: ignore
-            None,
-        )
-    return cmap, norm  # type: ignore
+        cmap = plt.get_cmap("Greens_r", 4)
+    boundaries = np.arange(-0.5, 4, 1)
+    return cmap, BoundaryNorm(boundaries, cmap.N)  # type: ignore
+
+
+def _classify_br_state(df: pd.DataFrame, baseline: float = BASE_ONSET) -> pd.DataFrame:
+    """Return a DataFrame with a 'state' column for BR sweep."""
+    diff = (df["onset_time"].astype(float) - baseline).abs()
+    df = df.copy()
+    df["state"] = np.where(
+        diff <= 30,
+        0,
+        np.where(
+            diff <= 60,
+            1,
+            np.where(
+                diff <= 90,
+                2,
+                3,
+            ),
+        ),
+    )
+    # set onset time as state now
+    df["onset_time"] = df["state"]
+    return df
 
 
 def plot_phase_diagram(
@@ -63,15 +82,18 @@ def plot_phase_diagram(
 ) -> None:
     """Plot parameter sweep as a heat-map phase diagram."""
     df = _load_sweep(csv_path, tag)
-    if variable not in df.columns:
-        raise ValueError(f"Column '{variable}' not found in '{tag}' sweep")
+    if tag == "BR":
+        df = _classify_br_state(df)
+        x_name, y_name = "beta", "r"
+        x_label, y_label = r"$\beta$", r"$R$"
 
-    if tag == "AF":
+    elif tag == "AF":
         x_name, y_name = "activity", "flow"
         x_label, y_label = r"$A$", r"$F$"
+
     else:
-        x_name, y_name = "beta", "R"
-        x_label, y_label = r"$\beta$", r"$R$"
+        raise ValueError(f"Unknown sweep tag: {tag}")
+
     x, y, z = _pivot_grid(df, x_name, y_name, variable)
     cmap, norm = _choose_cmap_and_norm(variable)
 
@@ -81,7 +103,13 @@ def plot_phase_diagram(
     ax.set_ylabel(y_label)
 
     # Adjust descriptions for states
-    cbar = fig.colorbar(mesh, ax=ax, ticks=[0, 1, 2, 3], shrink=0.325, aspect=5)
+    cbar = fig.colorbar(
+        mesh,
+        ax=ax,
+        ticks=[0, 1, 2, 3],
+        shrink=0.325,
+        aspect=5,
+    )
     if variable == "state":
         cbar.set_ticklabels(
             [
@@ -91,10 +119,19 @@ def plot_phase_diagram(
                 "Deviated",
             ]
         )
-        cbar.ax.yaxis.set_ticks_position("none")
-        cbar.ax.tick_params(which="both", length=0)
-        cbar.set_label("")
-        cbar.ax.invert_yaxis()
+    else:
+        cbar.set_ticklabels(
+            [
+                "Within 30 min",
+                "30 – 60 min",
+                "60 – 90 min",
+                "> 90 min",
+            ]
+        )
+    cbar.ax.yaxis.set_ticks_position("none")
+    cbar.ax.tick_params(which="both", length=0)
+    cbar.set_label("")
+    cbar.ax.invert_yaxis()
 
     plt.savefig(save, dpi=450, bbox_inches="tight")
     print(f"Figure saved to {save.resolve()}")
@@ -104,7 +141,7 @@ def plot_phase_diagram(
 def _parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Visualise a single Pescoid phase diagram."
+        description="Visualize a single Pescoid phase diagram."
     )
     parser.add_argument(
         "csv", type=Path, help="Combined sweep CSV produced by the scan"
@@ -119,7 +156,7 @@ def _parse_arguments() -> argparse.Namespace:
         "--variable",
         "-v",
         default="state",
-        help="Column to visualise (default: state)",
+        help="Column to visualize: 'state' for AF or 'onset_time' for BR (default: state)",
     )
     return parser.parse_args()
 
@@ -127,6 +164,7 @@ def _parse_arguments() -> argparse.Namespace:
 def main() -> None:
     """Entry point to plot phase diagram sweep."""
     args = _parse_arguments()
+    _set_matplotlib_publication_parameters()
     plot_phase_diagram(
         csv_path=args.csv,
         tag=args.sweep,

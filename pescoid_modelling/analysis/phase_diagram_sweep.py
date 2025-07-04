@@ -112,38 +112,59 @@ def classify_state(
     metrics: Dict[str, float],
     threshold: float = 0.05,
 ) -> int:
-    """Classify trajectory into states using sign changes in Δsize/Δt. Requires
-    at least a 5% change in size to be considered a growth/shrinkage event.
+    """Classify trajectory into states using ≥ 5 % threshold crossings.
 
-    0 – Grows and later shrinks - wetting and dewetting
-    1 – Derivatives ≤ 0 (never grows) --> only de‑wet
-    2 – Derivatives ≥ 0 (never shrinks) --> only wet
-    3 – Everything else (e.g. oscillatory/noisy)
+    0 – Wet + de-wet: grow ≥ 5 % above the start, then shrink ≥ 5 %
+        below that peak (single up -> down cycle).
+    1 – De-wet only: never grows ≥ 5 % above the start but shrinks ≥ 5 %
+        below the start (monotonic down).
+    2 – Wet only: grows ≥ 5 % above the start and never shrinks ≥ 5 % below
+        its post-growth extrema (monotonic up).
+    3 – Any additional ≥ 5 % reversal or < 3 points / ≤ 5 % flat.
     """
     size = np.asarray(metrics["tissue_size"], dtype=float)
     if size.size < 3:
         return 3
 
-    initial = size[0]
-    peak = size.max()
-    trough = size.min()
+    start = size[0]
+    extreme = start
+    direction = None
+    crossings = 0
 
-    grew = peak > initial * (1 + threshold)
-    shrank = trough < peak * (1 - threshold)
+    for val in size[1:]:
+        if direction is None:
+            if val > extreme * (1 + threshold):
+                direction = "up"
+                extreme = val
+            elif val < extreme * (1 - threshold):
+                direction = "down"
+                extreme = val
 
-    if grew and shrank:
-        wet_idx = np.argmax(size > initial * (1 + threshold))
-        post_peak = size[wet_idx:]
-        drop_mask = post_peak < size[wet_idx] * (1 - threshold)
-        if drop_mask.any():
-            return 0
+        elif direction == "up":
+            if val > extreme:
+                extreme = val
+            elif val < extreme * (1 - threshold):
+                crossings += 1
+                direction = "down"
+                extreme = val
+
+        elif direction == "down":
+            if val < extreme:
+                extreme = val
+            elif val > extreme * (1 + threshold):
+                crossings += 1
+                direction = "up"
+                extreme = val
+
+    if crossings >= 2:
         return 3
 
-    if grew and not shrank:
+    if direction == "up" and crossings == 0:
         return 2
-
-    if shrank and not grew:
+    if direction == "down" and crossings == 0:
         return 1
+    if crossings == 1:
+        return 0
 
     return 3
 
@@ -210,21 +231,6 @@ def _parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def prepend_linspace(
-    new_start: float,
-    old_start: float,
-    old_stop: float,
-    n_old: int,
-) -> np.ndarray:
-    """Return the points below old_start down to new_start using the
-    same step that produced the original n_old points between old_start and
-    old_stop.
-    """
-    step = (old_stop - old_start) / (n_old - 1)
-    n_extra = int(np.floor((old_start - new_start) / step)) + 1
-    return np.linspace(new_start, old_start - step, n_extra)
-
-
 def main() -> None:
     """Entry point for phase diagram parameter sweep."""
     args = _parse_arguments()
@@ -238,30 +244,17 @@ def main() -> None:
     base_params = SimulationParams(
         **{k: v for k, v in base.items() if k in SimulationParams().__dict__}
     )
-
-    activity_config = sweep_config.get("activity", [0.3, 1.5, 15])
-    activity_range = range_from_list(sweep_config.get("activity", [0.3, 1.5, 15]))
-    flow_range = range_from_list(sweep_config.get("flow", [0.05, 0.35, 15]))
-    beta_range = range_from_list(sweep_config.get("beta", [0.4, 2.0, 15]))
-    r_range = range_from_list(sweep_config.get("r", [0.5, 3.0, 15]))
-
-    # Temporary: extend ranges to improve analysis resolution
-    extra_activity = np.array([])
-    if args.sweep == "AF" and len(activity_config) == 3:
-        a_start, a_stop, n_old = activity_config
-        extra_activity = prepend_linspace(
-            new_start=0.05,
-            old_start=a_start,
-            old_stop=a_stop,
-            n_old=n_old,
-        )
+    activity_range = range_from_list(sweep_config.get("activity", [0.05, 2.0, 20]))
+    flow_range = range_from_list(sweep_config.get("flow", [0.05, 0.35, 20]))
+    beta_range = range_from_list(sweep_config.get("beta", [0.0, 5.0, 20]))
+    r_range = range_from_list(sweep_config.get("r", [0.5, 3.0, 20]))
 
     if args.sweep == "AF":
         sweep_config = SweepConfig(
             tag="AF",
             p1_name="activity",
             p2_name="flow",
-            p1_range=extra_activity,
+            p1_range=activity_range,
             p2_range=flow_range,
         )
     elif args.sweep == "BR":
