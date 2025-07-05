@@ -48,15 +48,6 @@ def get_final_tissue_size(metrics: Dict[str, float]) -> float:
     return np.nan
 
 
-def get_final_meso_frac(metrics: Dict[str, float]) -> float:
-    """Return final mesoderm fraction or NaN if unavailable."""
-    if "mesoderm_fraction" in metrics:
-        frac_array = np.asarray(metrics["mesoderm_fraction"], dtype=float)
-        if frac_array.size > 0:
-            return float(frac_array[-1])
-    return np.nan
-
-
 def range_from_list(lst: List[float]) -> np.ndarray:
     """Convert a list of 2 or 3 numbers into a numpy linspace."""
     if len(lst) == 3:
@@ -71,7 +62,7 @@ def range_from_list(lst: List[float]) -> np.ndarray:
 class SweepConfig:
     """Container describing a 2-D parameter sweep."""
 
-    tag: str  # "AF" or "BR"
+    tag: str  # "AF", "BR", or "RTm"
     p1_name: str
     p2_name: str
     p1_range: Iterable[float]
@@ -86,16 +77,14 @@ class SweepConfig:
                 self.p2_name,
                 "state",
                 "final_tissue_size",
-                "mesoderm_fraction",
             ]
-        else:  # BR
+        else:  # BR or RTm
             return [
                 "pair",
                 self.p1_name,
                 self.p2_name,
                 "onset_time",
                 "final_tissue_size",
-                "mesoderm_fraction",
             ]
 
 
@@ -193,16 +182,14 @@ def sweep(config: SweepConfig, base: SimulationParams, out_csv: Path) -> None:
             pool.imap_unordered(_worker, param_grid), 1
         ):
             metrics = extract_simulation_metrics(results) if results else {}
-
             final_size = get_final_tissue_size(metrics)
-            meso_frac = get_final_meso_frac(metrics)
 
             if config.tag == "AF":
                 state = classify_state(metrics) if metrics else 3
-                append_csv(out_csv, ["AF", p1, p2, state, final_size, meso_frac])
+                append_csv(out_csv, ["AF", p1, p2, state, final_size])
             else:
                 onset = onset_time_from(metrics)
-                append_csv(out_csv, ["BR", p1, p2, onset, final_size, meso_frac])
+                append_csv(out_csv, [config.tag, p1, p2, onset, final_size])
 
             if idx % 32 == 0 or idx == total:
                 print(f"[{config.tag}] {idx}/{total} done …")
@@ -212,7 +199,7 @@ def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a Pescoid parameter sweep.")
     parser.add_argument(
         "--sweep",
-        choices=("AF", "BR"),
+        choices=("AF", "BR", "RTm"),
         help="Which sweep to run",
         default="AF",
     )
@@ -248,6 +235,7 @@ def main() -> None:
     flow_range = range_from_list(sweep_config.get("flow", [0.05, 0.35, 20]))
     beta_range = range_from_list(sweep_config.get("beta", [0.0, 5.0, 20]))
     r_range = range_from_list(sweep_config.get("r", [0.5, 3.0, 20]))
+    tau_m_range = range_from_list(sweep_config.get("tau_m", [0.1, 8.0, 20]))
 
     if args.sweep == "AF":
         sweep_config = SweepConfig(
@@ -264,6 +252,14 @@ def main() -> None:
             p2_name="r",
             p1_range=beta_range,
             p2_range=r_range,
+        )
+    elif args.sweep == "RTm":
+        sweep_config = SweepConfig(
+            tag="RTm",
+            p1_name="r",
+            p2_name="tau_m",
+            p1_range=r_range,
+            p2_range=tau_m_range,
         )
 
     sweep(
