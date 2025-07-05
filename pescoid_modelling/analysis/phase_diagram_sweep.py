@@ -18,6 +18,8 @@ from pescoid_modelling.utils.helpers import get_physical_cores
 from pescoid_modelling.utils.helpers import load_yaml_config
 
 CORES = get_physical_cores()
+mp.set_start_method("spawn", force=True)
+CTX = mp.get_context("spawn")
 
 
 def onset_time_from(metrics: Dict[str, float]) -> float:
@@ -177,7 +179,7 @@ def sweep(config: SweepConfig, base: SimulationParams, out_csv: Path) -> None:
     total = len(param_grid)
 
     print(f"[{config.tag}] using {CORES} workers for {total} jobs")
-    with mp.Pool(processes=CORES) as pool:
+    with CTX.Pool(processes=CORES, maxtasksperchild=1) as pool:
         for idx, (p1, p2, results) in enumerate(
             pool.imap_unordered(_worker, param_grid), 1
         ):

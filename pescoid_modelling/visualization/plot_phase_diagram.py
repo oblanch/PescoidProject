@@ -9,6 +9,7 @@ from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd  # type: ignore
+from scipy.ndimage import gaussian_filter  # type: ignore
 
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 
@@ -87,6 +88,11 @@ def plot_phase_diagram(
         x_name, y_name = "beta", "r"
         x_label, y_label = r"$\beta$", r"$R$"
 
+    elif tag == "RTm":
+        df = _classify_br_state(df)
+        x_name, y_name = "r", "tau_m"
+        x_label, y_label = r"$R$", r"$\tau_m$"
+
     elif tag == "AF":
         x_name, y_name = "activity", "flow"
         x_label, y_label = r"$A$", r"$F$"
@@ -99,10 +105,10 @@ def plot_phase_diagram(
 
     fig, ax = plt.subplots(figsize=(2.4, 1.65), constrained_layout=True)
     mesh = ax.pcolormesh(x, y, z, cmap=cmap, norm=norm, shading="nearest")
+
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
 
-    # Adjust descriptions for states
     cbar = fig.colorbar(
         mesh,
         ax=ax,
@@ -116,7 +122,7 @@ def plot_phase_diagram(
                 "Wet and dewet",
                 "Dewet only",
                 "Wet only",
-                "Deviated",
+                "Indeterminate",
             ]
         )
     else:
@@ -149,14 +155,14 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--sweep",
         required=True,
-        choices=("AF", "BR"),
-        help="Which sweep to plot (AF or BR)",
+        choices=("AF", "BR", "RTm"),
+        help="Which sweep to plot (AF, BR, or RTm)",
     )
     parser.add_argument(
         "--variable",
         "-v",
         default="state",
-        help="Column to visualize: 'state' for AF or 'onset_time' for BR (default: state)",
+        help="Column to visualize: 'state' for AF or 'onset_time' for BR / RTm (default: state)",
     )
     return parser.parse_args()
 
@@ -169,7 +175,7 @@ def main() -> None:
         csv_path=args.csv,
         tag=args.sweep,
         variable=args.variable,
-        save=args.save or Path(f"phase_diagram_{args.sweep}_{args.variable}.png"),
+        save=args.save or Path(f"phase_diagram_{args.sweep}_{args.variable}.svg"),
     )
 
 
