@@ -1,16 +1,14 @@
 """Scan Sobol-sampled parameter space."""
 
+import argparse
 import csv
 from dataclasses import replace
 from pathlib import Path
-import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy.interpolate import interp1d  # type: ignore
 from scipy.stats import qmc  # type: ignore
-import yaml  # type: ignore
 
 from pescoid_modelling.objective import check_acceptance_criteria
 from pescoid_modelling.objective import extract_simulation_metrics
@@ -42,7 +40,6 @@ FAST_PATCH = dict(
 )
 
 # Optimization settings
-MAX_TRIES = 1000
 BATCH_POW2 = 5
 PROGRESS_EVERY = 32
 KEEP_TOP = 5
@@ -284,8 +281,8 @@ def calculate_combined_score(
 
 def grid_search(
     config_path: Path,
+    max_tries: int,
     log_csv: Path = Path("parameter_scan_log.csv"),
-    max_tries: int = MAX_TRIES,
 ) -> None:
     """Local Sobol scan around an existing seed (x naught)."""
 
@@ -385,8 +382,24 @@ def grid_search(
 
 def main() -> None:
     """Entry point for parameter scanning."""
-    config_path = Path("/Users/steveho/PescoidProject/configs/optimization_config.yaml")
-    grid_search(config_path)
+    parser = argparse.ArgumentParser(
+        description="Run a grid search over parameter space for pescoid simulations."
+    )
+    parser.add_argument(
+        "--onfig",
+        type=Path,
+        help="Path to the YAML configuration file for simulation parameters.",
+        default="PescoidProject/configs/optimization_config.yaml",
+    )
+    parser.add_argument(
+        "--max_tries",
+        type=int,
+        default=1000,
+        help="Maximum number of trials to run in the grid search.",
+    )
+    args = parser.parse_args()
+
+    grid_search(config_path=args.config, max_tries=args.max_tries)
 
 
 if __name__ == "__main__":

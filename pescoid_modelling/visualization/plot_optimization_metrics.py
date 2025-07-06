@@ -2,7 +2,6 @@
 
 from typing import List, Tuple
 
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -13,7 +12,7 @@ from pescoid_modelling.visualization import _set_matplotlib_publication_paramete
 PARAM_NAMES_FORMAL = [
     "δ",
     "F",
-    "Tau_m",
+    "τ_m",
     "Γ",
     "A",
     "β",

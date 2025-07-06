@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-
-
-"""Comprehensive pescoid simulation output visualization."""
+"""Pescoid simulation output visualization."""
 
 from typing import Any, Dict, List, Optional
 

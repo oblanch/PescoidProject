@@ -3,12 +3,11 @@
 from dataclasses import asdict
 import multiprocessing as mp
 from pathlib import Path
-from typing import Any, Callable, Dict, List, MutableMapping, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, MutableMapping, Tuple, Union
 
 import cma  # type: ignore
 from matplotlib import pyplot as plt
 import numpy as np
-import psutil  # type: ignore
 from tqdm import tqdm  # type: ignore
 
 from pescoid_modelling.objective import _invalid_fitness

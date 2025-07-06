@@ -10,7 +10,6 @@ from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd  # type: ignore
-from scipy.ndimage import gaussian_filter  # type: ignore
 
 from pescoid_modelling.visualization import _set_matplotlib_publication_parameters
 

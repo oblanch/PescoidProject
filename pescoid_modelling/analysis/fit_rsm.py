@@ -5,9 +5,6 @@ continuous responses.
 import argparse
 from pathlib import Path
 
-from matplotlib import cm
-from matplotlib import colors
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd  # type: ignore
 from sklearn.linear_model import LinearRegression  # type: ignore

@@ -1,8 +1,11 @@
 cma==4.0.0
 fenics_dolfin==2019.1.0
 fenics_ufl==2019.1.0
+matplotlib==3.10.3
+pandas==2.3.0
 psutil==7.0.0
 PyYAML==6.0.2
+scikit_learn==1.7.0
+scipy==1.15.3
 setuptools==80.1.0
 tqdm==4.67.1
-scipy==1.15.3

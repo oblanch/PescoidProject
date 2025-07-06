@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import sys
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd  # type: ignore

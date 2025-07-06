@@ -140,17 +140,6 @@ def _add_simulation_parameter_overrides(parser: argparse.ArgumentParser) -> None
         type=float,
         help="Sensitivity of contractility increase when cells become mesoderm",
     )
-
-    # Morphogen parameters
-    param_group.add_argument(
-        "--c_diffusivity", type=float, help="D_c - morphogen diffusion coefficient"
-    )
-    param_group.add_argument(
-        "--morphogen_decay", type=float, help="k - morphogen decay/consumption rate"
-    )
-    param_group.add_argument(
-        "--gaussian_width", type=float, help="σ - width of Gaussian source"
-    )
     param_group.add_argument(
         "--morphogen_feedback",
         type=float,
