@@ -233,11 +233,11 @@ def main() -> None:
     base_params = SimulationParams(
         **{k: v for k, v in base.items() if k in SimulationParams().__dict__}
     )
-    activity_range = range_from_list(sweep_config.get("activity", [0.05, 2.0, 20]))
-    flow_range = range_from_list(sweep_config.get("flow", [0.05, 0.35, 20]))
-    beta_range = range_from_list(sweep_config.get("beta", [0.0, 5.0, 20]))
-    r_range = range_from_list(sweep_config.get("r", [0.5, 3.0, 20]))
-    tau_m_range = range_from_list(sweep_config.get("tau_m", [0.1, 8.0, 20]))
+    activity_range = range_from_list(sweep_config.get("activity", [0.05, 2.0, 25]))
+    flow_range = range_from_list(sweep_config.get("flow", [0.05, 0.35, 25]))
+    beta_range = range_from_list(sweep_config.get("beta", [0.0, 5.0, 25]))
+    r_range = range_from_list(sweep_config.get("r", [0.5, 3.0, 25]))
+    tau_m_range = range_from_list(sweep_config.get("tau_m", [0.1, 8.0, 25]))
 
     if args.sweep == "AF":
         sweep_config = SweepConfig(

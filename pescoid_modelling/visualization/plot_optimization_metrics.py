@@ -1,5 +1,6 @@
 """Code to plot trajectories of a single simulation."""
 
+import argparse
 from typing import List, Tuple
 
 import matplotlib.pyplot as plt
@@ -29,8 +30,6 @@ def plot_optimization_metrics(
     fit_csv: str = "cma_restart.logfit.dat",
 ) -> None:
     """Entry point to plot optimization results."""
-    _set_matplotlib_publication_parameters()
-
     it_fit, fitness, sigma, axis_r = _load_fit(fit_csv)
     it_std, stddev = _load_stddev(stddev_csv)
     it_ax, axlen = _load_axis_lengths(axlen_csv)
@@ -274,3 +273,48 @@ def plot_parameter_evolution(
     plt.tight_layout(h_pad=1.5)
     plt.savefig("parameter_evolution.svg")
     plt.close()
+
+
+def main() -> None:
+    """Entry point to plot optimization metrics."""
+    _set_matplotlib_publication_parameters()
+
+    parser = argparse.ArgumentParser(
+        description="Plot optimization metrics from CMA-ES logs."
+    )
+    parser.add_argument(
+        "--optim-csv",
+        type=str,
+        default="cma_restart.logxrecentbest.dat",
+        help="Path to the CMA-ES optimization CSV file.",
+    )
+    parser.add_argument(
+        "--axlen-csv",
+        type=str,
+        default="cma_restart.logaxlen.dat",
+        help="Path to the axis lengths CSV file.",
+    )
+    parser.add_argument(
+        "--stddev-csv",
+        type=str,
+        default="cma_restart.logstddev.dat",
+        help="Path to the standard deviations CSV file.",
+    )
+    parser.add_argument(
+        "--fit-csv",
+        type=str,
+        default="cma_restart.logfit.dat",
+        help="Path to the fitness CSV file.",
+    )
+    args = parser.parse_args()
+
+    plot_optimization_metrics(
+        optim_csv=args.optim_csv,
+        axlen_csv=args.axlen_csv,
+        stddev_csv=args.stddev_csv,
+        fit_csv=args.fit_csv,
+    )
+
+
+if __name__ == "__main__":
+    main()

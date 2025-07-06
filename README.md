@@ -46,6 +46,8 @@ Simulation and optimization runs require different sets of parameters. An exampl
 A reference timeseries with data for tissue size and mesoderm fraction is used for the optimization as well as post-simulation comparison. We provide this data in [`data/reference_timeseries.npz`](data/reference_timeseries.npz). *The reference file contains smoothed and plateau-adjusted trajectories derived from the experimental measurements using the [`make_reference_timeseries`](pescoid_modelling/utils/helpers.py#L11) function. For raw experimental data, please see the [Zenodo repository](https://zenodo.org/record/YOUR_RECORD_ID).*
 
 ## Examples
+We describe the CLI-based functionality of the package below. If you are interested in reproducing the results of the paper, please see [`docs/reproducibility.md`](docs/reproducibility.md)
+
 ### Run simulations:
 ```shell
 # single simulation

@@ -1,5 +1,6 @@
 """Animate pescoid wetting and dewetting from simulation data."""
 
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -212,16 +213,16 @@ def animate_pescoid_1d_profiles(
     # Density
     ax_density.set(
         xlim=(-2, 2),
-        ylim=(0, 1.25),
+        ylim=(0, np.max(density) + 0.05),
         ylabel="Density (ρ)",
     )
-    (line_density,) = ax_density.plot([], [], linewidth=0.55, color="tab:blue")
+    (line_density,) = ax_density.plot([], [], linewidth=0.3, color="tab:blue")
     fill_density = None
 
     # Velocity
     ax_velocity.set(
         xlim=(-2, 2),
-        ylim=(-0.7, 0.7),
+        ylim=((np.min(velocity) - 0.025), np.max(velocity) + 0.025),
         ylabel="Velocity (u)",
     )
     (line_velocity,) = ax_velocity.plot([], [], linewidth=0.55, color="tab:green")
@@ -229,21 +230,21 @@ def animate_pescoid_1d_profiles(
     # Mesoderm
     ax_mesoderm.set(
         xlim=(-2, 2),
-        ylim=(-1, 1.75),
+        ylim=(-1, np.max(mesoderm) + 0.05),
         ylabel="Mesoderm m",
         xlabel="X (coordinate position)",
     )
-    (line_mesoderm,) = ax_mesoderm.plot([], [], linewidth=0.6, color="tab:red")
+    (line_mesoderm,) = ax_mesoderm.plot([], [], linewidth=0.3, color="tab:red")
     fill_mesoderm = None
 
     # Stress
     ax_stress.set(
         xlim=(-2, 2),
-        ylim=(0, 2.55),
+        ylim=(0, np.max(stress) + 0.05),
         ylabel="Stress (σ)",
         xlabel="X (coordinate position)",
     )
-    (line_stress,) = ax_stress.plot([], [], linewidth=0.55, color="tab:purple")
+    (line_stress,) = ax_stress.plot([], [], linewidth=0.3, color="tab:purple")
     fill_stress = None
 
     center_idx = int(np.argmin(np.abs(x_coords)))
@@ -362,33 +363,51 @@ def animate_pescoid_1d_overlay(
 
     fig, ax = plt.subplots(figsize=(2.25, 2), sharex=False)
 
+    # y_lim to max + 0.05
+    max_y = max(density.max(), mesoderm.max(), stress.max()) + 0.05
     ax.set(
         xlim=(-2, 2),
-        ylim=(-1.00, 2.55),
+        ylim=(-1.00, max_y),
         xlabel="X (coordinate position)",
-        ylabel="Nondimensionalised units",
+        ylabel="Nondimensionalized units",
     )
 
-    (line_density,) = ax.plot([], [], color="tab:blue", lw=0.7, label="Density (ρ)")
-    (line_mesoderm,) = ax.plot([], [], color="tab:red", lw=0.7, label="Mesoderm (m)")
-    (line_stress,) = ax.plot([], [], color="tab:purple", lw=0.7, label="Stress (σ)")
+    (line_density,) = ax.plot([], [], color="tab:blue", lw=0.3, label="Density (ρ)")
+    (line_mesoderm,) = ax.plot([], [], color="tab:red", lw=0.3, label="Mesoderm (m)")
+    (line_stress,) = ax.plot([], [], color="tab:purple", lw=0.3, label="Stress (σ)")
+
+    fill_density = ax.fill_between([], [], [], color="tab:blue", alpha=0.15)
+    fill_mesoderm = ax.fill_between([], [], [], color="tab:red", alpha=0.15)
+    fill_stress = ax.fill_between([], [], [], color="tab:purple", alpha=0.15)
+
+    edge_L = ax.axvline(0, ls="dashdot", color="0.5", lw=0.5, alpha=0.3)
+    edge_R = ax.axvline(0, ls="dashdot", color="0.5", lw=0.5, alpha=0.3)
 
     ax.legend(frameon=False, bbox_to_anchor=(0.725, 1.3))
     centre_idx = int(np.argmin(np.abs(x_coords)))
+    x_max = np.abs(x_coords).max()
 
     def init() -> List:
         """Blank lines to start."""
         for ln in (line_density, line_mesoderm, line_stress):
             ln.set_data([], [])
-        return [line_density, line_mesoderm, line_stress]
+        return [
+            line_density,
+            line_mesoderm,
+            line_stress,
+            fill_density,
+            fill_mesoderm,
+            fill_stress,
+            edge_L,
+            edge_R,
+        ]
 
     def animate(frame: int) -> List:
         """Update traces for frame."""
-        radius = float(tissue_sizes[frame])
+        nonlocal fill_density, fill_mesoderm, fill_stress
 
-        edge_idx = centre_idx + int(
-            radius * len(x_coords) / (2 * np.abs(x_coords).max())
-        )
+        radius = float(tissue_sizes[frame])
+        edge_idx = centre_idx + int(radius * len(x_coords) / (2 * x_max))
         edge_idx = min(edge_idx, len(x_coords) - 1)
         left_idx = max(0, centre_idx - (edge_idx - centre_idx))
 
@@ -401,7 +420,27 @@ def animate_pescoid_1d_overlay(
         line_mesoderm.set_data(x_t, m_t)
         line_stress.set_data(x_t, σ_t)
 
-        return [line_density, line_mesoderm, line_stress]
+        # refresh fills
+        for coll in (fill_density, fill_mesoderm, fill_stress):
+            coll.remove()
+        fill_density = ax.fill_between(x_t, 0.0, ρ_t, color="tab:blue", alpha=0.15)
+        fill_mesoderm = ax.fill_between(x_t, 0.0, m_t, color="tab:red", alpha=0.15)
+        fill_stress = ax.fill_between(x_t, 0.0, σ_t, color="tab:purple", alpha=0.15)
+
+        # move dashed edges
+        edge_L.set_xdata([-radius, -radius])
+        edge_R.set_xdata([radius, radius])
+
+        return [
+            line_density,
+            line_mesoderm,
+            line_stress,
+            fill_density,
+            fill_mesoderm,
+            fill_stress,
+            edge_L,
+            edge_R,
+        ]
 
     anim = animation.FuncAnimation(
         fig,
@@ -437,8 +476,18 @@ def animate_pescoid_1d_overlay(
 def main() -> None:
     """CLI entry‑point that reproduces the legacy default behaviour."""
     _set_matplotlib_publication_parameters()
-    data = load_simulation_data("simulation_results.npz")
+    parser = argparse.ArgumentParser(
+        description="Animate pescoid wetting and dewetting from simulation data."
+    )
+    parser.add_argument(
+        "--npz",
+        type=str,
+        default="simulation_results.npz",
+        help="Path to the .npz file containing simulation data.",
+    )
+    args = parser.parse_args()
 
+    data = load_simulation_data(args.npz)
     animate_pescoid_radial_symmetry(data, "pescoid_mesoderm_animation")
     animate_pescoid_1d_profiles(data, "pescoid_1d_profiles_animation")
     animate_pescoid_1d_overlay(data, "pescoid_1d_overlay_animation")

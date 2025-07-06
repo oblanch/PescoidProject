@@ -1,5 +1,6 @@
 """Pescoid simulation output visualization."""
 
+import argparse
 from typing import Any, Dict, List, Optional
 
 from matplotlib.cm import ScalarMappable
@@ -320,7 +321,19 @@ def plot_all_diagnostics(
 def main():
     """Main function to run the diagnostics."""
     _set_matplotlib_publication_parameters()
-    sim_data = _load_simulation_data("simulation_results.npz")
+
+    parser = argparse.ArgumentParser(
+        description="Plot diagnostics from pescoid simulation data."
+    )
+    parser.add_argument(
+        "--npz",
+        type=str,
+        required=True,
+        help="Path to the simulation results .npz file.",
+    )
+    args = parser.parse_args()
+
+    sim_data = _load_simulation_data(args.npz)
     plot_all_diagnostics(sim_data, "simulation")
 
 

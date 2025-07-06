@@ -147,7 +147,6 @@ def plot_phase_diagram(
         columnspacing=0.8,
     )
 
-    # ---------------------------------------------------------------- save ----
     plt.savefig(save, dpi=450, bbox_inches="tight")
     print(f"Figure saved to {save.resolve()}")
     plt.close(fig)
@@ -169,7 +168,6 @@ def _parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--variable",
-        "-v",
         default="state",
         help="Column to visualize: 'state' for AF or 'onset_time' for BR / RTm (default: state)",
     )

@@ -386,7 +386,7 @@ def main() -> None:
         description="Run a grid search over parameter space for pescoid simulations."
     )
     parser.add_argument(
-        "--onfig",
+        "--config",
         type=Path,
         help="Path to the YAML configuration file for simulation parameters.",
         default="PescoidProject/configs/optimization_config.yaml",
