@@ -11,7 +11,6 @@ from pescoid_modelling.utils.constants import EMA_ALPHA
 from pescoid_modelling.utils.constants import EPS
 from pescoid_modelling.utils.constants import GROWTH_MIN
 from pescoid_modelling.utils.constants import JITTER
-from pescoid_modelling.utils.constants import MIN_PEAK_TIME
 from pescoid_modelling.utils.constants import ONSET_THRESH
 from pescoid_modelling.utils.constants import ONSET_TIME_SCALE
 from pescoid_modelling.utils.constants import OPTIM_PENALTY

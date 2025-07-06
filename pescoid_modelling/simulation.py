@@ -318,8 +318,7 @@ class PescoidSimulator:
         u_prev: Function,
         test_rho: Function,
     ) -> Form:
-        """Formulate the variational form for the density equation (tissue
-        growth).
+        """Formulate the variational form for the density equation (growth).
 
         Strong form:
           ∂ρ/∂t  +  ∂x(F * u * ρ)  =  δ * ∂²ρ/∂x² - ρ * (1 - ρ)
@@ -359,7 +358,8 @@ class PescoidSimulator:
         c_prev: Function,
         test_m: Function,
     ) -> Form:
-        """Formulate the variational form for mesoderm differentiation.
+        """Formulate the variational form for mesoderm differentiation (cell
+        fate).
 
         Strong form:
           ∂m/∂t = Dₘ * ∂²m/∂x² + F * uⁿ * ∂mⁿ/∂x - (1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ)
@@ -427,8 +427,7 @@ class PescoidSimulator:
         m_prev: Function,
         test_u: Function,
     ) -> Form:
-        """Formulate the variational form for tissue velocity (force balance
-        equation):
+        """Formulate the variational form for velocity (force balance):
 
         Strong form:
           ρ_gate * Γ * u^{n+1} - ρ_gate * ∂²u/∂x² = ∂σⁿ/∂x
@@ -544,13 +543,13 @@ class PescoidSimulator:
     ) -> Function:
         """Calculate the active stress field:
 
-        σᵃ = ρ * [A * f(ρ, m) - 1]
+        σᵃ = ρ * [A · f(ρ, m)]
         """
         rho_clamped, active_stress_factor = self._calculate_active_stress_factor(
             rho_prev, m_prev
         )
 
-        # σᵃ = ρ * (active_stress_factor)
+        # active stress field: σᵃ = ρ * A · f(ρ, m)
         return rho_clamped * active_stress_factor  # type: ignore
 
     def _calculate_stress_divergence(

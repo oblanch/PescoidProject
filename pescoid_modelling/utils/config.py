@@ -58,7 +58,7 @@ class SimulationParams:
       m_sensitivity:
         Sensitivity of the increase in contractility when cells become mesoderm
       morphogen_feedback:
-        R - morphogen sensitivity for chemical feedback
+        M - morphogen sensitivity for chemical feedback
       feedback_mode:
         Mode of mechanical feedback, either "active_stress" or
         "strain_rate".
