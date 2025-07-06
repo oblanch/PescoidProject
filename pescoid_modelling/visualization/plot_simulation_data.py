@@ -163,7 +163,7 @@ def plot_spatial_fields(
         times_minutes = sim_data["time"] * minutes_per_generation
         indices = [np.argmin(np.abs(times_minutes - tp)) for tp in time_points]  # type: ignore
 
-    fig, axes = plt.subplots(2, 2, figsize=(7.5, 4))
+    fig, axes = plt.subplots(2, 2, figsize=(5.3, 2.55))
     axes = axes.flatten()
 
     x_coords = sim_data["x_coords"]
@@ -192,10 +192,17 @@ def plot_spatial_fields(
 
         sm = ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
-        cbar = plt.colorbar(sm, ax=ax, shrink=0.2, aspect=5)
+        cbar = plt.colorbar(
+            sm,
+            ax=ax,
+            shrink=0.3,
+            aspect=5,
+            ticks=[time_values.min(), time_values.max()],
+        )
+
         cbar.set_label("Time (min)", rotation=270, labelpad=8)
 
-    plt.tight_layout(h_pad=5)
+    plt.tight_layout(h_pad=3)
     return fig
 
 
@@ -293,7 +300,6 @@ def plot_all_diagnostics(
     minutes_per_generation: float = 30.0,
 ) -> None:
     """Generate and save all diagnostic plots."""
-    _set_matplotlib_publication_parameters()
     plt.rcParams["font.family"] = "DejaVu Sans"
     plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Nimbus Sans"]
 
@@ -316,6 +322,7 @@ def plot_all_diagnostics(
 
 def main():
     """Main function to run the diagnostics."""
+    _set_matplotlib_publication_parameters()
     sim_data = _load_simulation_data("simulation_results.npz")
     plot_all_diagnostics(sim_data, "simulation")
 

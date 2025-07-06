@@ -19,14 +19,15 @@ PARAM_NAMES_FORMAL = [
     "β",
     "r",
     "m_sensitivity",
+    "morphogen_feedback",
 ]
 
 
 def plot_optimization_metrics(
-    optim_csv: str = "cma_restart_4xrecentbest.dat",
-    axlen_csv: str = "cma_restart_4axlen.dat",
-    stddev_csv: str = "cma_restart_4stddev.dat",
-    fit_csv: str = "cma_restart_4fit.dat",
+    optim_csv: str = "cma_restart.logxrecentbest.dat",
+    axlen_csv: str = "cma_restart.logaxlen.dat",
+    stddev_csv: str = "cma_restart.logstddev.dat",
+    fit_csv: str = "cma_restart.logfit.dat",
 ) -> None:
     """Entry point to plot optimization results."""
     _set_matplotlib_publication_parameters()
@@ -57,6 +58,7 @@ def _load_cma_data(dat_file: str) -> Tuple[list, list, list, np.ndarray]:
         "beta",
         "r",
         "m_sensitivity",
+        "morphogen_feedback",
     ]
 
     df = pd.read_csv(
@@ -108,46 +110,6 @@ def _load_fit(dat_file: str) -> Tuple[list, list, list, list]:
     return iters, fitness_best, sigma, axis_ratio
 
 
-def plot_axis_lengths(iterations: List[int], axlen: np.ndarray) -> None:
-    """Plot every principal-axis length on a log scale with parameter legend."""
-    plt.figure(figsize=(1.7, 1.20))
-    ax = plt.gca()
-    ax.margins(x=0.00001, y=0.01)
-
-    n_axes = axlen.shape[1]
-    cmap = plt.get_cmap("turbo")
-    handles = []
-
-    for i in range(n_axes):
-        (line,) = ax.plot(
-            iterations,
-            axlen[:, i],
-            linewidth=0.5,
-            color=cmap(i / max(1, n_axes - 1)),
-            label=(
-                PARAM_NAMES_FORMAL[i] if i < len(PARAM_NAMES_FORMAL) else f"Axis {i+1}"
-            ),
-        )
-        handles.append(line)
-
-    ax.set_yscale("log")
-    ax.set_xlabel("Iteration")
-    ax.set_ylabel("Principal-axis length")
-
-    ax.legend(
-        handles=handles,
-        fontsize=4,
-        frameon=False,
-        ncol=2,
-        columnspacing=0.6,
-        handlelength=1.4,
-    )
-
-    plt.tight_layout()
-    plt.savefig("principal_axis_lengths.svg")
-    plt.close()
-
-
 def plot_fitness_sigma_axis(
     iters: List[int],
     fitness: List[float],
@@ -156,7 +118,7 @@ def plot_fitness_sigma_axis(
     out_path: str = "fit_sigma_axis.svg",
 ) -> None:
     """Facet the three key scalars into one 1x3 figure."""
-    fig, axes = plt.subplots(1, 3, figsize=(4.2, 1.15), sharex=True)
+    fig, axes = plt.subplots(1, 3, figsize=(4, 1.15), sharex=True)
     for ax in axes:
         ax.margins(x=0.00001, y=0.05)
 
@@ -170,7 +132,6 @@ def plot_fitness_sigma_axis(
         markeredgewidth=0.4,
     )
     axes[0].set_ylabel("Best fitness")
-    axes[0].set_xlabel("Iterations")
 
     axes[1].plot(
         iters,
@@ -196,7 +157,6 @@ def plot_fitness_sigma_axis(
         markeredgewidth=0.4,
     )
     axes[2].set_ylabel("Axis ratio")
-    axes[2].set_xlabel("Iterations")
 
     plt.tight_layout()
     fig.savefig(out_path)
@@ -211,7 +171,7 @@ def plot_axislen_stddev(
     out_path: str = "axis_stddev_facet.svg",
 ) -> None:
     """Facet axis lengths and stddev side-by-side with shared legend."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(3.4, 1.5), sharex=True)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(4, 1.75), sharex=True)
 
     n = axlen.shape[1]
     cmap = plt.get_cmap("viridis")
@@ -255,9 +215,9 @@ def plot_axislen_stddev(
         handles,
         labels,
         loc="upper center",
-        ncol=4,
+        ncol=3,
         frameon=False,
-        bbox_to_anchor=(0.5, 1.0),
+        bbox_to_anchor=(0.5, 1.02),
         bbox_transform=fig.transFigure,
     )
 
@@ -276,10 +236,9 @@ def plot_parameter_evolution(
     if param_names is None:
         param_names = [f"Param {i+1}" for i in range(n_params)]
 
-    n_rows = int(np.ceil(n_params / 2))
-    n_cols = 2
+    n_rows = n_cols = 3
 
-    fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(2.55, 0.775 * n_rows))
+    _, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(4, 1 * n_rows))
     axes = axes.flatten()
     cmap = plt.get_cmap("viridis")
     x_min, x_max = min(iterations), max(iterations)

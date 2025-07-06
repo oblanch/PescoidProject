@@ -167,7 +167,7 @@ def plot_simulation_timeseries(
     save_prefix: str = "simulation",
 ) -> None:
     """Plot tissue size and Mesoderm fraction over time."""
-    base_width = 2.25
+    base_width = 2.35
     base_height = 1.95
     ratio = 0.625
 
@@ -288,8 +288,8 @@ def plot_simulation_timeseries(
         )
 
     ax1.set_xmargin(0)
-    ax1.spines["top"].set_visible(False)
-    ax2.spines["top"].set_visible(False)
+    # ax1.spines["top"].set_visible(False)
+    # ax2.spines["top"].set_visible(False)
 
     suffix = "_with_exp" if experimental_data is not None else ""
     output_path = os.path.join(output_dir, f"{save_prefix}_timeseries{suffix}.svg")

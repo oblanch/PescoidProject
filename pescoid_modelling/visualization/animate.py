@@ -212,7 +212,7 @@ def animate_pescoid_1d_profiles(
     # Density
     ax_density.set(
         xlim=(-2, 2),
-        ylim=(0, 1.15),
+        ylim=(0, 1.25),
         ylabel="Density (ρ)",
     )
     (line_density,) = ax_density.plot([], [], linewidth=0.55, color="tab:blue")
@@ -239,7 +239,7 @@ def animate_pescoid_1d_profiles(
     # Stress
     ax_stress.set(
         xlim=(-2, 2),
-        ylim=(0, 1.95),
+        ylim=(0, 2.55),
         ylabel="Stress (σ)",
         xlabel="X (coordinate position)",
     )
@@ -247,7 +247,6 @@ def animate_pescoid_1d_profiles(
     fill_stress = None
 
     center_idx = int(np.argmin(np.abs(x_coords)))
-    max_radius_idx = int(np.argmax(tissue_sizes))
 
     def init() -> List:
         """Initialize the animation."""
@@ -365,7 +364,7 @@ def animate_pescoid_1d_overlay(
 
     ax.set(
         xlim=(-2, 2),
-        ylim=(-1.00, 2.0),
+        ylim=(-1.00, 2.55),
         xlabel="X (coordinate position)",
         ylabel="Nondimensionalised units",
     )

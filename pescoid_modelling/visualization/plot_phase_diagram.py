@@ -6,6 +6,7 @@ from typing import Tuple
 
 from matplotlib.colors import BoundaryNorm
 from matplotlib.colors import ListedColormap
+from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd  # type: ignore
@@ -103,42 +104,51 @@ def plot_phase_diagram(
     x, y, z = _pivot_grid(df, x_name, y_name, variable)
     cmap, norm = _choose_cmap_and_norm(variable)
 
-    fig, ax = plt.subplots(figsize=(2.4, 1.65), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(1.52, 1.55), constrained_layout=True)
     mesh = ax.pcolormesh(x, y, z, cmap=cmap, norm=norm, shading="nearest")
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
 
-    cbar = fig.colorbar(
-        mesh,
-        ax=ax,
-        ticks=[0, 1, 2, 3],
-        shrink=0.325,
-        aspect=5,
-    )
     if variable == "state":
-        cbar.set_ticklabels(
-            [
-                "Wet and dewet",
-                "Dewet only",
-                "Wet only",
-                "Indeterminate",
-            ]
-        )
+        legend_vals = [0, 1, 2, 3]
+        legend_txts = [
+            "Wet and dewet",
+            "Dewet only",
+            "Wet only",
+            "Lost behavior",
+        ]
     else:
-        cbar.set_ticklabels(
-            [
-                "Within 30 min",
-                "30 – 60 min",
-                "60 – 90 min",
-                "> 90 min",
-            ]
-        )
-    cbar.ax.yaxis.set_ticks_position("none")
-    cbar.ax.tick_params(which="both", length=0)
-    cbar.set_label("")
-    cbar.ax.invert_yaxis()
+        legend_vals = [0, 1, 2, 3]
+        legend_txts = [
+            "Within 30 min",
+            "30 – 60 min",
+            "60 – 90 min",
+            "> 90 min",
+        ]
 
+    handles = [
+        Patch(
+            facecolor=cmap(norm(v)),  # type: ignore
+            label=lbl,
+            edgecolor="black",
+            linewidth=0.1,
+        )
+        for v, lbl in zip(legend_vals, legend_txts)
+    ]
+
+    ax.legend(
+        handles=handles,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.4),
+        ncol=2,
+        frameon=False,
+        handlelength=1.2,
+        handleheight=1.2,
+        columnspacing=0.8,
+    )
+
+    # ---------------------------------------------------------------- save ----
     plt.savefig(save, dpi=450, bbox_inches="tight")
     print(f"Figure saved to {save.resolve()}")
     plt.close(fig)
@@ -150,7 +160,7 @@ def _parse_arguments() -> argparse.Namespace:
         description="Visualize a single Pescoid phase diagram."
     )
     parser.add_argument(
-        "csv", type=Path, help="Combined sweep CSV produced by the scan"
+        "--csv", type=Path, help="Combined sweep CSV produced by the scan"
     )
     parser.add_argument(
         "--sweep",
@@ -175,7 +185,7 @@ def main() -> None:
         csv_path=args.csv,
         tag=args.sweep,
         variable=args.variable,
-        save=args.save or Path(f"phase_diagram_{args.sweep}_{args.variable}.svg"),
+        save=Path(f"phase_diagram_{args.sweep}.svg"),
     )
 
 
