@@ -15,4 +15,5 @@ simulation:
   rho_sensitivity: 0.0
   m_sensitivity: 0.05070302382000081
   morphogen_feedback: 1.2337528178981996
+  proliferation_factor: 1.0
   feedback_mode: active_stress

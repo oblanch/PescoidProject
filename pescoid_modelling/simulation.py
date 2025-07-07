@@ -155,6 +155,7 @@ class PescoidSimulator:
         self._m_sensitivity_const = Constant(self.params.m_sensitivity)
         self._morphogen_feedback_const = Constant(self.params.morphogen_feedback)
         self._rho_max_const = Constant(RHO_MAX)
+        self._proliferation_factor_const = Constant(self.params.proliferation_factor)
 
         # Imported constants
         self._rho_gate_center_const = Constant(RHO_GATE_CENTER)
@@ -344,7 +345,7 @@ class PescoidSimulator:
 
         # -ρ * (1 - ρ) = - Δt * ρⁿ * (1 - ρⁿ) * φ * dx
         reaction = (
-            -self._dt_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
+            -self._dt_const * self._proliferation_factor_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
         )
 
         return temporal + diffusion + advection + reaction

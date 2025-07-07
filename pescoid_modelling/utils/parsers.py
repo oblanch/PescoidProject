@@ -44,7 +44,6 @@ def _build_run_parser(
     parser.add_argument(
         "--experimental_npz",
         type=str,
-        default="data/reference_timeseries.npz",
         help="Experimental trajectories saved via np.savez(...). "
         "Should include arrays for time scale, normalized area, and mesoderm fraction.",
     )
@@ -144,6 +143,13 @@ def _add_simulation_parameter_overrides(parser: argparse.ArgumentParser) -> None
         "--morphogen_feedback",
         type=float,
         help="R - morphogen sensitivity for chemical feedback",
+    )
+    param_group.add_argument(
+        "--proliferation_factor",
+        type=float,
+        default=1.0,
+        help="Multiplies the proliferation term ρ(1-ρ) to simulate "
+        "increased or decreased proliferation.",
     )
 
     # Mode parameter

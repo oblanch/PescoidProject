@@ -76,10 +76,6 @@ def _prepare_output_dir(args: argparse.Namespace) -> Path:
 
 def _run_simulation(args: argparse.Namespace) -> None:
     """Entry point for running simulations."""
-    # Load configuration
-    if args.generate_figures:
-        _validate_experimental_data(args.experimental_npz)
-
     work_dir = _prepare_output_dir(args)
 
     overrides = extract_simulation_overrides(args)
@@ -108,7 +104,9 @@ def _run_simulation(args: argparse.Namespace) -> None:
             LOGGER.info("Visualizing simulation results.")
             visualize_simulation_results(
                 data_path=str(out_npz),
-                experimental_npz=args.experimental_npz,
+                experimental_npz=(
+                    args.experimental_npz if args.experimental_npz else None
+                ),
                 output_dir=str(work_dir),
             )
 
@@ -149,18 +147,12 @@ def _run_optimization(args: argparse.Namespace) -> None:
             output.write(f"{name}: {getattr(best_params, name)}\n")
     LOGGER.info(f"Best parameters written --> {out_txt}")
 
-    # TODO: Implement visualization for optimization results
-    if args.generate_figures:
-        LOGGER.info("Figure generation for optimization not yet implemented.")
-
 
 def _post_simulation_visualization(args: argparse.Namespace) -> None:
     """Plot saved trajectories without running simulation."""
-    _validate_experimental_data(args.experimental_npz)
-
     visualize_simulation_results(
         data_path=args.simulation_npz,
-        experimental_npz=args.experimental_npz,
+        experimental_npz=args.experimental_npz if args.experimental_npz else None,
         output_dir=args.output_dir,
     )
     LOGGER.info("Generated post-simulation trajectories.")

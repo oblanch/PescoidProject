@@ -50,7 +50,7 @@ class SimulationParams:
       gamma:
         Γ non friction coefficient.
       sigma_c:
-        σ_c -critical amount of mechanical feedback)
+        σ_c - critical amount of mechanical feedback)
       r:
         Sensitivity of cells to mechanical feedback
       rho_sensitivity:
@@ -62,25 +62,29 @@ class SimulationParams:
       feedback_mode:
         Mode of mechanical feedback, either "active_stress" or
         "strain_rate".
+      proliferation_factor:
+        Multiplies the proliferation term ρ(1-ρ) to simulate
+        increased or decreased proliferation.
     """
 
     delta_t: float = 0.01
     total_hours: float = 12.0
     domain_length: float = 10.0
     dx_interval: float = 0.01
-    diffusivity: float = 8.980959167540726e-05
+    diffusivity: float = 0.00026361376409494525
     m_diffusivity: float = 2e-3
-    tau_m: float = 5.96945686472471
-    flow: float = 0.14313330708373756
-    activity: float = 0.8177242457000748
-    beta: float = 0.6359440258892959
-    gamma: float = 0.19664898263383435
+    tau_m: float = 6.242153148113385
+    flow: float = 0.19627128512102468
+    activity: float = 0.8749997229064099
+    beta: float = 0.9969669403539715
+    gamma: float = 0.538795096984612
     sigma_c: float = 0.1
-    r: float = 1.4355095309012016
+    r: float = 0.968870632027848
     rho_sensitivity: float = 0.0
-    m_sensitivity: float = 0.09628726199197271
+    m_sensitivity: float = 0.05070302382000081
+    morphogen_feedback: float = 1.2337528178981996
+    proliferation_factor: float = 1.0
     feedback_mode: str = "active_stress"
-    morphogen_feedback: float = 1.5
 
 
 @dataclass(frozen=True)
