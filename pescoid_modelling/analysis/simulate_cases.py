@@ -134,7 +134,7 @@ def plot_comparison_grid(
     case_labels = ["Control", "Rock inhibitor", "Blebbistatin"]
     ref_data_paths = [control_data, rock_data, blebbistatin_data]
 
-    fig, axes = plt.subplots(2, 3, figsize=(3.2, 1.9))
+    fig, axes = plt.subplots(2, 3, figsize=(3.05, 1.9))
 
     for i, (case, label, ref_path) in enumerate(
         zip(cases, case_labels, ref_data_paths)

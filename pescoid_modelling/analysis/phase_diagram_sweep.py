@@ -72,7 +72,7 @@ class SweepConfig:
 
     def header(self) -> List[str]:
         """Return the header for the CSV file."""
-        if self.tag == "AF":
+        if self.tag in ["AF", "AB"]:  # AF or AB sweep
             return [
                 "pair",
                 self.p1_name,
@@ -80,7 +80,7 @@ class SweepConfig:
                 "state",
                 "final_tissue_size",
             ]
-        else:  # BR or RTm
+        else:  # BR or RTm or AR
             return [
                 "pair",
                 self.p1_name,
@@ -186,10 +186,10 @@ def sweep(config: SweepConfig, base: SimulationParams, out_csv: Path) -> None:
             metrics = extract_simulation_metrics(results) if results else {}
             final_size = get_final_tissue_size(metrics)
 
-            if config.tag == "AF":
+            if config.tag in ["AF", "AB"]:  # AF or AB sweep
                 state = classify_state(metrics) if metrics else 3
                 append_csv(out_csv, ["AF", p1, p2, state, final_size])
-            else:
+            else:  # BR or RTm or AR sweep
                 onset = onset_time_from(metrics)
                 append_csv(out_csv, [config.tag, p1, p2, onset, final_size])
 
@@ -201,7 +201,7 @@ def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a Pescoid parameter sweep.")
     parser.add_argument(
         "--sweep",
-        choices=("AF", "BR", "RTm"),
+        choices=("AF", "BR", "RTm", "AR", "AB"),
         help="Which sweep to run",
         default="AF",
     )
@@ -239,30 +239,22 @@ def main() -> None:
     r_range = range_from_list(sweep_config.get("r", [0.5, 3.0, 25]))
     tau_m_range = range_from_list(sweep_config.get("tau_m", [0.1, 8.0, 25]))
 
-    if args.sweep == "AF":
-        sweep_config = SweepConfig(
-            tag="AF",
-            p1_name="activity",
-            p2_name="flow",
-            p1_range=activity_range,
-            p2_range=flow_range,
-        )
-    elif args.sweep == "BR":
-        sweep_config = SweepConfig(
-            tag="BR",
-            p1_name="beta",
-            p2_name="r",
-            p1_range=beta_range,
-            p2_range=r_range,
-        )
-    elif args.sweep == "RTm":
-        sweep_config = SweepConfig(
-            tag="RTm",
-            p1_name="r",
-            p2_name="tau_m",
-            p1_range=r_range,
-            p2_range=tau_m_range,
-        )
+    sweep_configs = {
+        "AF": ("activity", "flow", activity_range, flow_range),
+        "BR": ("beta", "r", beta_range, r_range),
+        "RTm": ("r", "tau_m", r_range, tau_m_range),
+        "AR": ("activity", "r", activity_range, r_range),
+        "AB": ("activity", "beta", activity_range, beta_range),
+    }
+
+    p1_name, p2_name, p1_range, p2_range = sweep_configs[args.sweep]
+    sweep_config = SweepConfig(
+        tag=args.sweep,
+        p1_name=p1_name,
+        p2_name=p2_name,
+        p1_range=p1_range,
+        p2_range=p2_range,
+    )
 
     sweep(
         config=sweep_config,
