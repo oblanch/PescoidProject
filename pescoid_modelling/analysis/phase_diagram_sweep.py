@@ -239,12 +239,15 @@ def main() -> None:
     r_range = range_from_list(sweep_config.get("r", [0.5, 3.0, 25]))
     tau_m_range = range_from_list(sweep_config.get("tau_m", [0.1, 8.0, 25]))
 
+    beta_concentrated_range = range_from_list(sweep_config.get("beta", [0.0, 2.0, 25]))
+    r_concentrated_range = range_from_list(sweep_config.get("r", [0.85, 2.0, 25]))
+
     sweep_configs = {
         "AF": ("activity", "flow", activity_range, flow_range),
-        "BR": ("beta", "r", beta_range, r_range),
+        "BR": ("beta", "r", beta_concentrated_range, r_concentrated_range),
         "RTm": ("r", "tau_m", r_range, tau_m_range),
         "AR": ("activity", "r", activity_range, r_range),
-        "AB": ("activity", "beta", activity_range, beta_range),
+        "AB": ("activity", "beta", activity_range, beta_concentrated_range),
     }
 
     p1_name, p2_name, p1_range, p2_range = sweep_configs[args.sweep]
