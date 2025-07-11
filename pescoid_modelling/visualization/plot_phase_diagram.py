@@ -83,22 +83,21 @@ def plot_phase_diagram(
 ) -> None:
     """Plot parameter sweep as a heat-map phase diagram."""
     df = _load_sweep(csv_path, tag)
-    if tag == "BR":
-        df = _classify_br_state(df)
-        x_name, y_name = "beta", "r"
-        x_label, y_label = r"$\beta$", r"$R$"
+    param_configs = {
+        "BR": ("beta", "r", r"$\beta$", r"$R$"),
+        "RTm": ("r", "tau_m", r"$R$", r"$\tau_m$"),
+        "AR": ("activity", "r", r"$A$", r"$R$"),
+        "AB": ("activity", "beta", r"$A$", r"$\beta$"),
+        "AF": ("activity", "flow", r"$A$", r"$F$"),
+    }
 
-    elif tag == "RTm":
-        df = _classify_br_state(df)
-        x_name, y_name = "r", "tau_m"
-        x_label, y_label = r"$R$", r"$\tau_m$"
-
-    elif tag == "AF":
-        x_name, y_name = "activity", "flow"
-        x_label, y_label = r"$A$", r"$F$"
-
-    else:
+    if tag not in param_configs:
         raise ValueError(f"Unknown sweep tag: {tag}")
+
+    if tag in ["BR", "RTm", "AR"]:
+        df = _classify_br_state(df)
+
+    x_name, y_name, x_label, y_label = param_configs[tag]
 
     x, y, z = _pivot_grid(df, x_name, y_name, variable)
     cmap, norm = _choose_cmap_and_norm(variable)
@@ -163,8 +162,8 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--sweep",
         required=True,
-        choices=("AF", "BR", "RTm"),
-        help="Which sweep to plot (AF, BR, or RTm)",
+        choices=("AF", "BR", "RTm", "AR", "AB"),
+        help="Which sweep to plot (AF, BR, RTm, AR, AB)",
     )
     parser.add_argument(
         "--variable",

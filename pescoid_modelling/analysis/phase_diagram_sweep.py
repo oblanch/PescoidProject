@@ -188,7 +188,7 @@ def sweep(config: SweepConfig, base: SimulationParams, out_csv: Path) -> None:
 
             if config.tag in ["AF", "AB"]:  # AF or AB sweep
                 state = classify_state(metrics) if metrics else 3
-                append_csv(out_csv, ["AF", p1, p2, state, final_size])
+                append_csv(out_csv, [config.tag, p1, p2, state, final_size])
             else:  # BR or RTm or AR sweep
                 onset = onset_time_from(metrics)
                 append_csv(out_csv, [config.tag, p1, p2, onset, final_size])
