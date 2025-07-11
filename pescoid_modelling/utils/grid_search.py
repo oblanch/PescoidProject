@@ -48,7 +48,7 @@ EPS = 1e-12
 # Time conversion
 TOTAL_MIN = FAST_PATCH["total_hours"] * 60.0
 
-data_ctrl_t = np.arange(30, 630 + 1, 30)
+data_ctrl_t = np.arange(0, 600 + 1, 30)
 data_ctrl_r = np.array(
     [
         0.99345961,
