@@ -155,7 +155,8 @@ class PescoidSimulator:
         self._m_sensitivity_const = Constant(self.params.m_sensitivity)
         self._morphogen_feedback_const = Constant(self.params.morphogen_feedback)
         self._rho_max_const = Constant(RHO_MAX)
-        self._proliferation_factor_const = Constant(self.params.proliferation_factor)
+        # self._proliferation_factor_const = Constant(self.params.proliferation_factor)
+        self._proliferation_factor_const = Constant(1.0)
 
         # Imported constants
         self._rho_gate_center_const = Constant(RHO_GATE_CENTER)
@@ -344,8 +345,11 @@ class PescoidSimulator:
         )
 
         # -ρ * (1 - ρ) = - Δt * ρⁿ * (1 - ρⁿ) * φ * dx
+        # reaction = (
+        #     -self._dt_const * self._proliferation_factor_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
+        # )
         reaction = (
-            -self._dt_const * self._proliferation_factor_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
+            -self._dt_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
         )
 
         return temporal + diffusion + advection + reaction
@@ -392,6 +396,7 @@ class PescoidSimulator:
         mechanical_feedback = self._formulate_mechanical_feedback(
             rho_prev=rho_prev,
             m_prev=m_prev,
+            u_prev=u_prev,
             test_m=test_m,
             cue=getattr(self.params, "feedback_mode"),
         )
@@ -570,7 +575,7 @@ class PescoidSimulator:
         # ∂σ/∂x
         return active_stress.dx(0)
 
-    def _calculate_strain_rate(self, rho_prev: Function, m_prev: Function) -> Function:
+    def _calculate_strain_rate(self, rho_prev: Function, u_prev: Function) -> Function:
         """Calculate the strain rate based on the active stress field:
 
         -ρ_gate * ∂u/∂x
@@ -588,6 +593,7 @@ class PescoidSimulator:
         self,
         rho_prev: Function,
         m_prev: Function,
+        u_prev: Function,
         test_m: Function,
         cue: "str",
     ) -> Form:
@@ -602,7 +608,7 @@ class PescoidSimulator:
         if cue == "active_stress":
             mechanical_cue = self._calculate_active_stress_field(rho_prev, m_prev)
         elif cue == "strain_rate":
-            mechanical_cue = self._calculate_strain_rate(rho_prev, m_prev)
+            mechanical_cue = self._calculate_strain_rate(rho_prev, u_prev)
 
         return (
             self._dt_const
@@ -669,7 +675,7 @@ class PescoidSimulator:
             (rho_sol - rho_prev) * test_rho * dx  # type: ignore
             + self._dt_const * self._diffusivity_const * rho_sol.dx(0) * test_rho.dx(0) * dx  # type: ignore
             - self._dt_const * self._flow_const * u_prev * rho_prev * test_rho.dx(0) * dx  # type: ignore
-            - self._dt_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
+            - self._dt_const * self._proliferation_factor_const * rho_prev * (self._one_const - rho_prev) * test_rho * dx  # type: ignore
         )
         rho_residual = float(norm(assemble(rho_residual_form).get_local()))
 
@@ -677,6 +683,7 @@ class PescoidSimulator:
         mechanical_feedback = self._formulate_mechanical_feedback(
             rho_prev=rho_prev,  # type: ignore
             m_prev=m_prev,
+            u_prev=u_prev,
             test_m=test_m,
             cue=getattr(self.params, "feedback_mode"),
         )
@@ -726,6 +733,9 @@ class PescoidSimulator:
 
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""
+        if step_idx == 0:
+            print("→ parameters seen by simulator:", self.params.__dict__)
+
         lhs_form, rhs_form = self._forms
         solution = Function(self._mixed_function_space)
 
