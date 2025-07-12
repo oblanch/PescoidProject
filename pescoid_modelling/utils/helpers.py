@@ -77,7 +77,7 @@ def make_reference_timeseries(
     window_length: int = 7,
     polyorder: int = 1,
     plateau_frac: float = 1.00,
-    outfile: str = "reference_timeseries.npz",
+    outfile: str = "control_reference_timeseries.npz",
 ) -> None:
     """Builds a reference timeseries from experimental trajectories."""
     times = stats_df[time_key].to_numpy(dtype=float)

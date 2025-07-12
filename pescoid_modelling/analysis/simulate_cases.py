@@ -279,13 +279,11 @@ def plot_comparison_grid(
 
 def main() -> None:
     """Run all cases."""
-    control_data = "/Users/steveho/PescoidProject/data/reference_timeseries.npz"
+    control_data = "/Users/steveho/PescoidProject/data/control_reference_timeseries.npz"
     blebbistatin_data = (
         "/Users/steveho/PescoidProject/data/blebbistatin_reference_timeseries.npz"
     )
-    rock_data = (
-        "/Users/steveho/PescoidProject/data/rock_inhibitor_reference_timeseries.npz"
-    )
+    rock_data = "/Users/steveho/PescoidProject/data/rock_reference_timeseries.npz"
 
     output_dir = Path("")
     cases = get_cases()

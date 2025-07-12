@@ -203,7 +203,7 @@ def _build_visualization_parser(
     plot_parser.add_argument(
         "--experimental_npz",
         type=str,
-        default="data/reference_timeseries.npz",
+        default="data/control_reference_timeseries.npz",
         help="Experimental trajectories saved via np.savez(...). "
         "Should include arrays for time scale, normalized area, and mesoderm fraction.",
     )

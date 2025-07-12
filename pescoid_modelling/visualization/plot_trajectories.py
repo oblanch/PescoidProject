@@ -31,7 +31,7 @@ def visualize_simulation_results(
     Examples::
     >>> visualize_simulation_results(
             data_path="simulation_results.npz",
-            experimental_npz="reference_timeseries.npz",
+            experimental_npz="control_reference_timeseries.npz",
         )
     """
     _set_matplotlib_publication_parameters()
