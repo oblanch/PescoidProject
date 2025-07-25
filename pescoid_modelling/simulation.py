@@ -362,14 +362,14 @@ class PescoidSimulator:
         fate).
 
         Strong form:
-          ∂m/∂t = Dₘ * ∂²m/∂x² + F * uⁿ * ∂mⁿ/∂x - (1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ)
-          - (1/τₘ) * R * [mech_cueⁿ] - (1/τₘ) * R_c * cⁿ
+          ∂m/∂t = Dₘ * ∂²m/∂x² + F * uⁿ * ∂mⁿ/∂x + (1/τₘ) * mⁿ * (1+mⁿ) * (1-mⁿ)
+          + (1/τₘ) * R * [mech_cueⁿ] + (1/τₘ) * R_c * cⁿ
 
         Weak form:
           (m^{n+1} - mⁿ) * φ * dx
           + Δt * Dₘ * ∂xm^{n+1} * ∂xφ * dx
           + Δt * F * uⁿ * ∂xmⁿ * φ * dx
-          - Δt * (1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ) * φ * dx
+          - Δt * (1/τₘ) * mⁿ * (1+ mⁿ) * (1-mⁿ) * φ * dx
           - Δt * (1/τₘ) * R * [mech_cueⁿ] * φ * dx
           - Δt * (1/τₘ) * R_c * cⁿ * φ * dx = 0
         """
