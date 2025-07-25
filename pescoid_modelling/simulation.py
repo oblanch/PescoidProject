@@ -431,7 +431,7 @@ class PescoidSimulator:
         """Formulate the variational form for velocity (force balance):
 
         Strong form:
-          ρ_gate * Γ * u^{n+1} - ρ_gate * ∂²u/∂x² = ∂σⁿ/∂x
+          ρ_gate * Γ * u^{n+1} - * ∂/∂x[rho_gate * ∂u/∂x] = ∂σⁿ/∂x
 
         Weak form:
           ρ_gate * Γ * u^{n+1} * φ * dx
