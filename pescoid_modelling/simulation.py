@@ -376,12 +376,12 @@ class PescoidSimulator:
         # ∂m/∂t = (m^{n+1} - mⁿ) * φ * dx
         temporal = (m - m_prev) * test_m * dx  # type: ignore
 
-        # -(1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ) = -Δt * (1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ) * φ * dx
+        # -(1/τₘ) * mⁿ * (mⁿ+1) * (1-mⁿ) = -Δt * (1/τₘ) * mⁿ * (1+mⁿ) * (1-mⁿ) * φ * dx
         common_decay = (
             self._dt_const
             * (self._one_const / self._tau_m_const)  # type: ignore
             * m_prev
-            * (m_prev + self._one_const)  # type: ignore
+            * (self._one_const + m_prev)  # type: ignore
             * (self._one_const - m_prev)  # type: ignore
             * test_m
             * dx
@@ -728,9 +728,6 @@ class PescoidSimulator:
 
     def _advance(self, step_idx: int) -> bool:
         """Advance the simulation by one time step."""
-        if step_idx == 0:
-            print("→ parameters seen by simulator:", self.params.__dict__)
-
         lhs_form, rhs_form = self._forms
         solution = Function(self._mixed_function_space)
 

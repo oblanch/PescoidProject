@@ -192,6 +192,7 @@ def _vecs_to_simulation_config(vec_str: str, config_path: Union[str, Path]) -> N
         "  rho_sensitivity: 0.0",
         f"  m_sensitivity: {params['m_sensitivity']}",
         f"  morphogen_feedback: {params['morphogen_feedback']}",
+        "  proliferation_factor: 1.0",
         "  feedback_mode: active_stress",
     ]
 
