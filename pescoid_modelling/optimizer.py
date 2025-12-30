@@ -135,6 +135,7 @@ class CMAOptimizer:
 
         self.n_workers = get_physical_cores()
         self._mp_manager = mp.Manager()
+        self._mp_manager = mp.get_context("spawn").Manager()
         self.shared_ema: MutableMapping[str, float] = self._mp_manager.dict()  # type: ignore
 
         opts: Dict[str, Any] = {

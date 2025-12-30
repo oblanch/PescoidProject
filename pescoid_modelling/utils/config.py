@@ -50,7 +50,7 @@ class SimulationParams:
       gamma:
         Γ non friction coefficient.
       sigma_c:
-        σ_c - critical amount of mechanical feedback)
+        σ_c - critical amount of mechanical feedback
       r:
         Sensitivity of cells to mechanical feedback
       rho_sensitivity:
@@ -158,21 +158,19 @@ def apply_parameter_overrides(
     """Apply command-line parameter overrides to SimulationParams."""
     valid_fields = {field.name for field in params.__dataclass_fields__.values()}
 
-    invalid_keys = set(overrides.keys()) - valid_fields
-    if invalid_keys:
+    if invalid_keys := set(overrides.keys()) - valid_fields:
         raise ValueError(
             f"Invalid parameter override(s): {invalid_keys}. "
             f"Valid parameters are: {sorted(valid_fields)}"
         )
 
-    filtered_overrides = {k: v for k, v in overrides.items() if v is not None}
-    if not filtered_overrides:
+    if filtered_overrides := {k: v for k, v in overrides.items() if v is not None}:
+        return replace(params, **filtered_overrides)
+    else:
         return params
 
-    return replace(params, **filtered_overrides)
 
-
-def extract_simulation_overrides(args) -> Dict[str, Any]:
+def extract_simulation_overrides(args: Any) -> Dict[str, Any]:
     """Extract simulation parameter overrides from command-line arguments."""
     param_names = {
         field.name for field in SimulationParams.__dataclass_fields__.values()

@@ -125,10 +125,10 @@ class PescoidSimulator:
     @property
     def results(self) -> Dict[str, np.ndarray]:
         """Return simulation results as a dictionary."""
-        result_dict = self.logger.to_dict()
-        result_dict["aborted"] = np.asarray([self.aborted])
-        result_dict["dt"] = np.asarray([self.time_step])
-        return result_dict
+        simulation_results = self.logger.to_dict()
+        simulation_results["aborted"] = np.asarray([self.aborted])
+        simulation_results["dt"] = np.asarray([self.time_step])
+        return simulation_results
 
     def _set_simulation_time(
         self, total_hours: float = 12.0, minutes_per_generation: float = 30.0
@@ -322,13 +322,13 @@ class PescoidSimulator:
         """Formulate the variational form for the density equation (growth).
 
         Strong form:
-          ∂ρ/∂t  +  ∂x(F * u * ρ)  =  δ * ∂²ρ/∂x² - ρ * (1 - ρ)
+          ∂ρ/∂t  +  ∂x(F * u * ρ)  =  δ * ∂²ρ/∂x²  +  λ * ρ * (1 - ρ)
 
         Weak form:
           (ρ^{n+1} - ρⁿ) * φ * dx
           + Δt * δ * ∂xρ^{n+1} * ∂xφ * dx
           - Δt * F * uⁿ * ρⁿ * ∂xφ * dx
-          - Δt * ρⁿ * (1 - ρⁿ) * φ * dx = 0
+          - Δt * λ * ρⁿ * (1 - ρⁿ) * φ * dx = 0
         """
         # ∂ρ/∂t = (ρ^{n+1} - ρⁿ) * φ * dx
         temporal = (rho - rho_prev) * test_rho * dx  # type: ignore
@@ -362,8 +362,12 @@ class PescoidSimulator:
         fate).
 
         Strong form:
-          ∂m/∂t = Dₘ * ∂²m/∂x² + F * uⁿ * ∂mⁿ/∂x + (1/τₘ) * mⁿ * (1+mⁿ) * (1-mⁿ)
-          + (1/τₘ) * R * [mech_cueⁿ] + (1/τₘ) * R_c * cⁿ
+          ∂m/∂t
+            = Dₘ * ∂²m/∂x²
+            + F * uⁿ * ∂mⁿ/∂x
+            + (1/τₘ) * mⁿ * (1 + mⁿ) * (1 - mⁿ)
+            + (1/τₘ) * R * (mech_cueⁿ - σ_c)
+            + (1/τₘ) * R_c * cⁿ
 
         Weak form:
           (m^{n+1} - mⁿ) * φ * dx
@@ -646,12 +650,9 @@ class PescoidSimulator:
         # ∇ · v = ∂u/∂x (in 1D)
         velocity_divergence = u.dx(0)  # type: ignore
 
-        # P = σᵃ - η * (vᵣ(R)/R - ∇ · v)
-        pressure = active_stress - self._eta_const * (
+        return active_stress - self._eta_const * (
             boundary_term_const - velocity_divergence
         )
-
-        return pressure
 
     def _compute_residuals(
         self, solution: Function
@@ -848,16 +849,12 @@ class PescoidSimulator:
             return 0.0
 
         tissue_mesoderm = m_vals[self.half_domain_idx : int(edge_idx)]
-        if tissue_mesoderm.size == 0:
-            return 0.0
-
-        return (tissue_mesoderm > 0.0).mean()
+        return 0.0 if tissue_mesoderm.size == 0 else (tissue_mesoderm > 0.0).mean()
 
     def _compute_mesoderm_average(self, m_vals: np.ndarray, edge_idx: int) -> float:
         """Get all-tissue mesoderm average."""
         meso_all = m_vals[self.half_domain_idx : edge_idx + 1]
-        meso_avg = meso_all.mean()
-        return meso_avg
+        return meso_all.mean()
 
     def _compute_stress(self, rho_arr: np.ndarray, m_arr: np.ndarray) -> np.ndarray:
         """Compute stress of the simulation based on the current state."""
@@ -897,10 +894,7 @@ class PescoidSimulator:
         m_avg = self._compute_mesoderm_average(m_vals, edge_idx)
         stress_vals = self._compute_stress(rho_vals, m_vals)
 
-        if edge_idx < len(c_vals):
-            morphogen_edge = c_vals[edge_idx]
-        else:
-            morphogen_edge = 0.0
+        morphogen_edge = c_vals[edge_idx] if edge_idx < len(c_vals) else 0.0
         c_gradient = np.gradient(c_vals, x_coords)
 
         self.logger.log_snapshot(
@@ -926,11 +920,13 @@ class PescoidSimulator:
         )
 
     def save(self, file: str | Path) -> None:
+        """Save the simulation results to .npz."""
         out = Path(file).with_suffix(".npz")
         np.savez_compressed(out, allow_pickle=False, **self.results)
 
     @staticmethod
     def _ensure_non_negative(var_fn: Function) -> Function:
+        """Ensure that the function values are non-negative."""
         arr = var_fn.vector().get_local()
         np.maximum(arr, 0.0, out=arr)
         var_fn.vector().set_local(arr)
